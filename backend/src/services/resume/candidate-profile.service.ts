@@ -87,6 +87,12 @@ export class CandidateProfileService {
     return this.profiles.findById(profile.id!);
   }
 
+  /** Users the scheduler should search for. Paged so one tick stays bounded. */
+  async userIdsWithTargets(limit = 1000): Promise<string[]> {
+    const profiles = await this.profiles.find({ fields: { userId: true, targetTitles: true }, limit });
+    return profiles.filter(profile => (profile.targetTitles ?? []).length > 0).map(profile => profile.userId);
+  }
+
   async setPrimaryResume(userId: string, resumeId: string | undefined): Promise<void> {
     const profile = await this.get(userId);
     await this.profiles.updateById(profile.id!, { primaryResumeId: resumeId });

@@ -1,9 +1,10 @@
 import { Application, Constructor, createBindingFromClass } from '@loopback/core';
 import { CronComponent, CronJob } from '@loopback/cron';
 import { envBool, isTestEnv } from '../common/config/env.util';
+import { JobDiscoveryCron } from '../cron/job-discovery.cron';
 
 /** Scheduled jobs. Feature branches append here. */
-export const CRON_CLASSES: Constructor<CronJob>[] = [];
+export const CRON_CLASSES: Constructor<CronJob>[] = [JobDiscoveryCron];
 
 /**
  * Crons must run in exactly one process; RUN_SCHEDULED_JOBS=false on every other

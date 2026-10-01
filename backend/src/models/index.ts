@@ -4,3 +4,4 @@ export * from './auth/user.model';
 export * from './llm/llm-usage-log.model';
 export * from './resume/candidate-profile.model';
 export * from './resume/resume.model';
+export * from './jobs/job-listing.model';
