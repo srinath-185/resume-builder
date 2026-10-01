@@ -15,6 +15,7 @@ import { CandidateProfileService } from '../services/resume/candidate-profile.se
 import { ResumeParseService } from '../services/resume/resume-parse.service';
 import { ResumeService } from '../services/resume/resume.service';
 import { TextExtractionService } from '../services/resume/text-extraction.service';
+import { ResumeRenderService } from '../services/render/resume-render.service';
 
 /**
  * Single registration point for services. Each class is bound as
@@ -43,6 +44,7 @@ export const SERVICE_CLASSES: Constructor<unknown>[] = [
   CandidateProfileService,
   ResumeParseService,
   ResumeService,
+  ResumeRenderService,
 ];
 
 export function registerServices(app: Application, classes: Constructor<unknown>[] = SERVICE_CLASSES): void {
