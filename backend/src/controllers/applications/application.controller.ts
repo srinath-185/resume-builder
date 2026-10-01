@@ -7,7 +7,7 @@ import { sendFile } from '../../common/utils/send-file.util';
 import { ApplicationStatus } from '../../domain/application-status';
 import { JobApplication } from '../../models';
 import { ApplyAgentService } from '../../services/apply/apply-agent.service';
-import { ApplicationReview, ApplicationService, VariantEdit } from '../../services/tailoring/application.service';
+import { ApplicationReview, ApplicationService, ApplicationSummary, VariantEdit } from '../../services/tailoring/application.service';
 
 const INSTRUCTIONS_BODY = {
   content: {
@@ -36,7 +36,7 @@ export class ApplicationController {
   }
 
   @get('/applications')
-  list(@inject(SecurityBindings.USER) profile: UserProfile, @param.query.string('status') status?: ApplicationStatus): Promise<JobApplication[]> {
+  list(@inject(SecurityBindings.USER) profile: UserProfile, @param.query.string('status') status?: ApplicationStatus): Promise<ApplicationSummary[]> {
     return this.applications.list(currentUserId(profile), status);
   }
 
