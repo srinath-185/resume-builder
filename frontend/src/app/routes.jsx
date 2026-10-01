@@ -1,4 +1,6 @@
-import { FileUser, LayoutDashboard, UserCog } from 'lucide-react';
+import { Briefcase, FileUser, LayoutDashboard, Plug, UserCog } from 'lucide-react';
+import JobSourcesPage from '@/modules/Jobs/JobSourcesPage';
+import JobsPage from '@/modules/Jobs/JobsPage';
 import ProfilePage from '@/modules/Profile/ProfilePage';
 import ResumesPage from '@/modules/Resumes/ResumesPage';
 import Dashboard from '@/screens/Dashboard';
@@ -13,6 +15,8 @@ export const APP_ROUTES = [
   { path: '/resumes', element: <ResumesPage />, nav: { label: 'Resumes', icon: FileUser, section: 'main' } },
   { path: '/resumes/:id', element: <ResumeReviewPage /> },
   { path: '/profile', element: <ProfilePage />, nav: { label: 'Search profile', icon: UserCog, section: 'main' } },
+  { path: '/jobs', element: <JobsPage />, nav: { label: 'Jobs', icon: Briefcase, section: 'search' } },
+  { path: '/settings/job-sources', element: <JobSourcesPage />, nav: { label: 'Job sources', icon: Plug, section: 'settings' } },
 ];
 
 export const NAV_SECTIONS = [
