@@ -1,4 +1,6 @@
 import { BindingScope, inject, injectable } from '@loopback/core';
+import { AppValidationError, ERROR_CODES } from '../../common/errors';
+import { validateHiringTemplate } from '../../domain/hiring-query';
 import { ResumeDocument, yearsOfExperience } from '../../domain/resume-document';
 import { CandidateProfile, DEFAULT_AUTO_TAILOR_THRESHOLD, DEFAULT_DAILY_CAPS, DailyCaps } from '../../models';
 import { CandidateProfileRepository } from '../../repositories';
@@ -14,6 +16,7 @@ export interface ProfileUpdate {
   autoTailorThreshold?: number;
   dailyCaps?: Partial<DailyCaps>;
   defaultTemplateId?: string | null;
+  hiringQueryTemplate?: string | null;
 }
 
 const MAX_SEEDED_SKILLS = 40;
@@ -65,6 +68,12 @@ export class CandidateProfileService {
     if (patch.autoTailorThreshold !== undefined) data.autoTailorThreshold = patch.autoTailorThreshold;
     if (patch.dailyCaps) data.dailyCaps = { ...DEFAULT_DAILY_CAPS, ...before.dailyCaps, ...patch.dailyCaps };
     if (patch.defaultTemplateId !== undefined) data.defaultTemplateId = patch.defaultTemplateId ?? undefined;
+    if (patch.hiringQueryTemplate !== undefined) {
+      const template = patch.hiringQueryTemplate?.trim();
+      const problem = template ? validateHiringTemplate(template) : undefined;
+      if (problem) throw new AppValidationError(ERROR_CODES.HIRING_QUERY_INVALID, problem);
+      data.hiringQueryTemplate = template || undefined;
+    }
 
     await this.profiles.updateById(before.id!, data);
     const after = await this.profiles.findById(before.id!);
