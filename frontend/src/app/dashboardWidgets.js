@@ -1,6 +1,7 @@
 import { ReviewQueueWidget } from '@/modules/Applications/ReviewQueueWidget';
 import { JobsWidget } from '@/modules/Jobs/JobsWidget';
+import { OutboxWidget } from '@/modules/Outreach/OutboxWidget';
 import { ResumeWidget } from '@/modules/Resumes/ResumeWidget';
 
 /** Dashboard tiles contributed by features. Feature branches append components here. */
-export const DASHBOARD_WIDGETS = [ReviewQueueWidget, ResumeWidget, JobsWidget];
+export const DASHBOARD_WIDGETS = [ReviewQueueWidget, ResumeWidget, JobsWidget, OutboxWidget];

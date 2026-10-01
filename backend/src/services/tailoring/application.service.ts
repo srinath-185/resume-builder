@@ -1,4 +1,5 @@
 import { BindingScope, inject, injectable } from '@loopback/core';
+import { DataObject } from '@loopback/repository';
 import { randomUUID } from 'crypto';
 import { AppBusinessError, AppValidationError, ERROR_CODES } from '../../common/errors';
 import { ApplicationStatus, HAS_APPROVED_VARIANT } from '../../domain/application-status';
@@ -28,6 +29,8 @@ export interface ApplicationReview {
   variant?: ResumeVariant;
   master?: { resumeId: string; document: unknown };
 }
+
+export type ApplicationSummary = DataObject<JobApplication> & { jobTitle?: string; company?: string; location?: string };
 
 export interface ApprovedMaterials {
   application: JobApplication;
@@ -67,9 +70,19 @@ export class ApplicationService {
     @inject('services.AuditService') private audit: AuditService,
   ) {}
 
-  list(userId: string, status?: ApplicationStatus): Promise<JobApplication[]> {
+  /** Applications with the job's title, company and location, so lists never show bare ids. */
+  async list(userId: string, status?: ApplicationStatus): Promise<ApplicationSummary[]> {
     const where = status && Object.values(ApplicationStatus).includes(status) ? { status } : undefined;
-    return this.applications.findOwned(userId, { where, order: ['updatedAt DESC'], limit: 200 });
+    const applications = await this.applications.findOwned(userId, { where, order: ['updatedAt DESC'], limit: 200 });
+    const listingIds = [...new Set(applications.map(application => application.jobListingId))];
+    const listings = listingIds.length
+      ? await this.listings.findOwned(userId, { where: { id: { inq: listingIds } }, fields: { id: true, title: true, company: true, location: true } })
+      : [];
+    const byId = new Map(listings.map(listing => [listing.id, listing]));
+    return applications.map(application => {
+      const listing = byId.get(application.jobListingId);
+      return { ...(application.toJSON() as DataObject<JobApplication>), jobTitle: listing?.title, company: listing?.company, location: listing?.location };
+    });
   }
 
   get(userId: string, id: string): Promise<JobApplication> {

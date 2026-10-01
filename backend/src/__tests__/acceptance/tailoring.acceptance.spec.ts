@@ -159,6 +159,9 @@ describe('Tailoring, review and approval (acceptance)', () => {
     expect(applied).to.containDeep({ status: 'APPLIED', method: 'MANUAL' });
     const list = (await client.get('/api/applications?status=APPLIED').set(user.auth)).body.data;
     expect(list.map((a: { id: string }) => a.id)).to.eql([applicationId]);
+    expect(list[0]).to.containDeep({ jobTitle: 'Senior Backend Engineer', location: 'Chennai' });
+    expect(list[0].company).to.startWith('Globex');
+    expect(list[0]).to.not.have.property('approvedPdfKey');
   });
 
   it('auto-drafts for high-scoring discovered jobs but still waits for review', async () => {

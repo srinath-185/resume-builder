@@ -37,6 +37,19 @@ export default function ApplicationsPage() {
           empty={t('applications.empty', 'Nothing here. Tailor a resume from the Jobs page.')}
           columns={[
             { key: 'status', header: t('applications.status', 'Status'), render: application => <StatusBadge status={application.status} /> },
+            {
+              key: 'job',
+              header: t('applications.job', 'Job'),
+              render: application => (
+                <div>
+                  <p className="font-medium text-slate-900">{application.jobTitle}</p>
+                  <p className="text-xs text-slate-500">
+                    {application.company}
+                    {application.location ? ` · ${application.location}` : ''}
+                  </p>
+                </div>
+              ),
+            },
             { key: 'auto', header: '', render: application => (application.autoTailored ? <span className="text-xs text-slate-500">{t('applications.auto', 'auto-drafted')}</span> : null) },
             {
               key: 'note',
