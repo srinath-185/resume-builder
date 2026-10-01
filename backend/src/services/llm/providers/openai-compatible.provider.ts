@@ -103,8 +103,9 @@ export function createGroqProvider(http?: ResilientHttpClient): OpenAiCompatible
       defaultBaseUrl: 'https://api.groq.com/openai/v1',
       smallModelEnv: 'GROQ_SMALL_MODEL',
       largeModelEnv: 'GROQ_LARGE_MODEL',
-      defaultSmallModel: 'llama-3.1-8b-instant',
-      defaultLargeModel: 'llama-3.3-70b-versatile',
+      // Verified against Groq's model list on 2026-10-01 (the Llama 3.x ids were retired).
+      defaultSmallModel: 'openai/gpt-oss-20b',
+      defaultLargeModel: 'openai/gpt-oss-120b',
       defaultSupportsJsonMode: true,
     },
     http,

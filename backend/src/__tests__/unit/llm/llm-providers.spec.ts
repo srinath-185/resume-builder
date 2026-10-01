@@ -50,7 +50,8 @@ describe('LLM providers', () => {
     expect(body.messages[0]).to.eql({ role: 'system', content: 'You extract keywords.' });
     expect(body.response_format).to.eql({ type: 'json_object' });
     expect(result).to.eql({ text: '{"keywords":[]}', usage: { inputTokens: 12, outputTokens: 3 } });
-    expect(provider.modelFor('large')).to.equal('llama-3.3-70b-versatile');
+    expect(provider.modelFor('large')).to.equal('openai/gpt-oss-120b');
+    expect(provider.modelFor('small')).to.equal('openai/gpt-oss-20b');
   });
 
   it('OpenCode Zen: unconfigured without a key, no default model, no json mode unless enabled', async () => {
