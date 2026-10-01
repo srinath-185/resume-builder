@@ -17,6 +17,7 @@
     "test:only": "mocha"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "0.131.0",
     "@loopback/authentication": "11.0.14",
     "@loopback/boot": "7.0.14",
     "@loopback/core": "6.1.11",
