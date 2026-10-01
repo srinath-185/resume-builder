@@ -27,6 +27,23 @@ npm run dev               # http://127.0.0.1:3100/api, explorer at /api/explorer
 
 Every response is `{ success: true, data }` or `{ success: false, error: { code, message, details? } }`.
 
+## Frontend
+
+```bash
+cd frontend
+npm install
+npm test                  # vitest (jsdom)
+npm run dev               # http://127.0.0.1:5300, proxies /api to the backend (API_TARGET to override)
+npm run build
+```
+
+Features plug in through three registries: `src/app/routes.jsx` (pages and sidebar),
+`src/app/dashboardWidgets.js` (dashboard tiles) and `api.injectEndpoints` (RTK Query endpoints).
+List-and-form pages are declared with `createModuleComponent(config)`; hand-built screens are used
+only where the UI is not list-and-form shaped (resume review, application review).
+Error messages are keyed by the backend's error codes in `src/common/locales/en/errors.json`; a test
+fails if the backend adds a code without a message.
+
 ## Branching
 
 One branch per feature (`feature/<name>`), merged into `main` with `--no-ff` so each feature stays
