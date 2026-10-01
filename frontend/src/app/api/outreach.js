@@ -19,6 +19,7 @@ export const outreachApi = api.injectEndpoints({
     // Mail connector
     mailConnector: build.query({ query: () => '/mail-connector', providesTags: ['Mail'] }),
     startGmail: build.mutation({ query: () => ({ url: '/mail-connector/gmail/start', method: 'POST' }) }),
+    confirmGmail: build.mutation({ query: pending => ({ url: '/mail-connector/gmail/confirm', method: 'POST', body: { pending } }), invalidatesTags: ['Mail'] }),
     saveSmtp: build.mutation({ query: body => ({ url: '/mail-connector/smtp', method: 'PUT', body }), invalidatesTags: ['Mail'] }),
     testMail: build.mutation({ query: () => ({ url: '/mail-connector/test', method: 'POST' }), invalidatesTags: ['Mail'] }),
     disconnectMail: build.mutation({ query: () => ({ url: '/mail-connector', method: 'DELETE' }), invalidatesTags: ['Mail'] }),
@@ -57,6 +58,7 @@ export const {
   useDeleteContactMutation,
   useMailConnectorQuery,
   useStartGmailMutation,
+  useConfirmGmailMutation,
   useSaveSmtpMutation,
   useTestMailMutation,
   useDisconnectMailMutation,

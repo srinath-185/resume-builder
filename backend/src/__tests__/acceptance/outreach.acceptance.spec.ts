@@ -149,11 +149,17 @@ describe('Mail connectors and outreach (acceptance)', () => {
     const { url } = (await client.post('/api/mail-connector/gmail/start').set(user.auth).expect(200)).body.data;
     const state = new URL(url).searchParams.get('state')!;
     const callback = await client.get(`/api/mail-connector/gmail/callback?code=abc&state=${encodeURIComponent(state)}`).expect(302);
-    expect(callback.headers.location).to.equal('http://localhost:5300/settings/mail?gmail=connected');
+    const landing = new URL(callback.headers.location);
+    expect(landing.origin + landing.pathname).to.equal('http://localhost:5300/settings/mail');
+    expect(landing.searchParams.get('gmail')).to.equal('confirm');
+    const pending = landing.searchParams.get('pending')!;
+    expect(pending).to.not.match(/refresh-abc/);
     const forged = await client.get('/api/mail-connector/gmail/callback?code=abc&state=forged').expect(302);
     expect(forged.headers.location).to.endWith('gmail=error');
 
-    const view = (await client.get('/api/mail-connector').set(user.auth)).body.data;
+    // The callback alone connects nothing: the signed-in user must claim the grant.
+    expect((await client.get('/api/mail-connector').set(user.auth)).body.data.connected).to.be.false();
+    const view = (await client.post('/api/mail-connector/gmail/confirm').set(user.auth).send({ pending }).expect(200)).body.data;
     expect(view).to.containDeep({ connected: true, provider: 'GMAIL', senderEmail: 'me@gmail.example.test' });
 
     const applicationId = await approvedApplication();
@@ -167,6 +173,26 @@ describe('Mail connectors and outreach (acceptance)', () => {
     gmail.failAuth = true;
     await client.post('/api/mail-connector/test').set(user.auth).expect(400);
     expect((await client.get('/api/mail-connector').set(user.auth)).body.data).to.containDeep({ connected: false, status: 'ERROR' });
+  });
+
+  it('refuses a Gmail grant claimed by anyone but the user who started the sign-in', async () => {
+    const { url } = (await client.post('/api/mail-connector/gmail/start').set(user.auth).expect(200)).body.data;
+    const state = new URL(url).searchParams.get('state')!;
+    const callback = await client.get(`/api/mail-connector/gmail/callback?code=xyz&state=${encodeURIComponent(state)}`).expect(302);
+    const pending = new URL(callback.headers.location).searchParams.get('pending')!;
+
+    const victim = await givenUser(client);
+    const claimed = await client.post('/api/mail-connector/gmail/confirm').set(victim.auth).send({ pending }).expect(422);
+    expect(claimed.body.error.code).to.equal('OAUTH_STATE_INVALID');
+    expect((await client.get('/api/mail-connector').set(victim.auth)).body.data.connected).to.be.false();
+
+    const tampered = await client.post('/api/mail-connector/gmail/confirm').set(user.auth).send({ pending: pending.slice(0, -4) + 'AAAA' }).expect(422);
+    expect(tampered.body.error.code).to.equal('OAUTH_STATE_INVALID');
+  });
+
+  it('only accepts SMTP on mail submission ports', async () => {
+    const response = await client.put('/api/mail-connector/smtp').set(user.auth).send({ ...SMTP_SETTINGS, port: 6379 }).expect(422);
+    expect(response.body.error.code).to.equal('SMTP_HOST_NOT_ALLOWED');
   });
 
   it('reports Gmail as unavailable when the server has no OAuth client', async () => {

@@ -29,6 +29,12 @@ const authSlice = createSlice({
       state.user = action.payload.user;
       persist(state);
     },
+    /** Keeps the stored profile (name, role) in step with /auth/me. */
+    userRefreshed(state, action) {
+      if (!state.token) return;
+      state.user = action.payload;
+      persist(state);
+    },
     loggedOut(state) {
       state.token = null;
       state.user = null;
@@ -37,7 +43,13 @@ const authSlice = createSlice({
   },
 });
 
-export const { signedIn, loggedOut } = authSlice.actions;
+export const { signedIn, userRefreshed, loggedOut } = authSlice.actions;
 export const authReducer = authSlice.reducer;
 export const selectToken = state => state.auth.token;
 export const selectUser = state => state.auth.user;
+export const selectRole = state => state.auth.user?.role ?? 'user';
+
+/** Whether a route declaring `roles` is visible to this user. Display only: the API enforces access. */
+export function canSee(route, role) {
+  return !route.roles || route.roles.includes(role);
+}

@@ -6,7 +6,8 @@ import { AuthForm } from './AuthForm';
 export const RegisterSchema = z.object({
   name: z.string().trim().min(1, 'Enter your name').max(120),
   email: z.string().trim().email('Enter a valid email'),
-  password: z.string().min(8, 'Use at least 8 characters').max(200),
+  // bcrypt only uses the first 72 bytes; the server refuses anything longer.
+  password: z.string().min(8, 'Use at least 8 characters').max(72, 'Use at most 72 characters'),
 });
 
 export default function Register() {

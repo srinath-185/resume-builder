@@ -1,7 +1,7 @@
 import { BindingScope, inject, injectable } from '@loopback/core';
 import { randomUUID } from 'crypto';
 import jwt from 'jsonwebtoken';
-import { requiredEnv } from '../../common/config/env.util';
+import { envList, requiredEnv } from '../../common/config/env.util';
 import { AppBusinessError, AppValidationError, ERROR_CODES } from '../../common/errors';
 import { MailConnector, MailConnectorStatus, MailProvider } from '../../models';
 import { MailConnectorRepository } from '../../repositories';
@@ -9,7 +9,7 @@ import { AuditService } from '../audit/audit.service';
 import { EncryptionService } from '../common/encryption.service';
 import { LoggerService } from '../common/logger.service';
 import { MailTransportRegistryService } from './mail-transport-registry.service';
-import { GmailAuthError, OutgoingMail, SentMail, SmtpConfig } from './mail-transports';
+import { GmailAuthError, OutgoingMail, SentMail, SmtpConfig, SmtpHostNotAllowedError } from './mail-transports';
 
 export interface MailConnectorView {
   connected: boolean;
@@ -30,6 +30,20 @@ export interface SmtpInput extends SmtpConfig {
 export type MailToSend = Omit<OutgoingMail, 'from' | 'messageId'> & { messageId?: string };
 
 const STATE_AUDIENCE = 'gmail-connect';
+const PENDING_TTL_MS = 10 * 60 * 1000;
+const DEFAULT_SMTP_PORTS = ['25', '465', '587', '2525'];
+
+/** A Gmail grant waiting for the signed-in user to claim it (see completeGmail). */
+interface PendingGmail {
+  userId: string;
+  refreshToken: string;
+  email: string;
+  expiresAt: number;
+}
+
+function allowedSmtpPorts(): number[] {
+  return envList('SMTP_ALLOWED_PORTS', DEFAULT_SMTP_PORTS).map(Number).filter(Number.isInteger);
+}
 
 function senderDomain(email: string): string {
   return email.split('@')[1] ?? 'resume-builder.local';
@@ -72,7 +86,13 @@ export class MailConnectorService {
     return { url: this.transports.gmail.authUrl(state) };
   }
 
-  /** OAuth callback. The signed, short-lived state identifies the user, since the browser redirect carries no session. */
+  /**
+   * OAuth callback (unauthenticated: the browser arrives from Google). The
+   * grant is not saved here. It is sealed into an encrypted, short-lived
+   * "pending" token that the app sends back with the signed-in user's bearer
+   * token (confirmGmail). Without that step anyone could send a victim their
+   * own consent link and have the victim's mailbox attached to their account.
+   */
   async completeGmail(code: string, state: string): Promise<string> {
     let userId: string;
     try {
@@ -87,15 +107,35 @@ export class MailConnectorService {
       this.logger.warn('Gmail connect failed', { userId, error: (error as Error).message });
       throw new AppBusinessError(ERROR_CODES.MAIL_CONNECT_FAILED, 'Google sign-in did not complete');
     }
-    await this.save(userId, MailProvider.GMAIL, result.email, undefined, this.encryption.encrypt(result.refreshToken));
-    return userId;
+    const pending: PendingGmail = { userId, refreshToken: result.refreshToken, email: result.email, expiresAt: Date.now() + PENDING_TTL_MS };
+    return this.encryption.encryptJson(pending);
+  }
+
+  /** Saves a pending Gmail grant, but only for the user who started the sign-in. */
+  async confirmGmail(userId: string, pendingToken: string): Promise<MailConnectorView> {
+    let pending: PendingGmail;
+    try {
+      pending = this.encryption.decryptJson<PendingGmail>(pendingToken);
+    } catch {
+      throw new AppValidationError(ERROR_CODES.OAUTH_STATE_INVALID, 'The sign-in link expired; start again');
+    }
+    if (pending.userId !== userId || !(pending.expiresAt > Date.now())) {
+      if (pending.userId !== userId) this.logger.warn('Gmail grant claimed by a different user', { userId, startedBy: pending.userId });
+      throw new AppValidationError(ERROR_CODES.OAUTH_STATE_INVALID, 'The sign-in link expired; start again');
+    }
+    await this.save(userId, MailProvider.GMAIL, pending.email, undefined, this.encryption.encrypt(pending.refreshToken));
+    return this.view(userId);
   }
 
   async saveSmtp(userId: string, input: SmtpInput): Promise<MailConnectorView> {
     const config: SmtpConfig = { host: input.host.trim(), port: input.port, secure: input.secure, user: input.user.trim(), pass: input.pass };
+    if (!allowedSmtpPorts().includes(config.port)) {
+      throw new AppValidationError(ERROR_CODES.SMTP_HOST_NOT_ALLOWED, `SMTP port must be one of ${allowedSmtpPorts().join(', ')}`);
+    }
     try {
       await this.transports.smtp.verify(config);
     } catch (error) {
+      if (error instanceof SmtpHostNotAllowedError) throw new AppValidationError(ERROR_CODES.SMTP_HOST_NOT_ALLOWED, error.message);
       throw new AppBusinessError(ERROR_CODES.MAIL_CONNECT_FAILED, `SMTP login failed: ${(error as Error).message}`.slice(0, 300));
     }
     await this.save(userId, MailProvider.SMTP, input.senderEmail.trim().toLowerCase(), input.senderName?.trim(), this.encryption.encryptJson(config));

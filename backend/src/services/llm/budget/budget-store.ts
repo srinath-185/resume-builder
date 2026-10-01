@@ -10,6 +10,7 @@ export interface BudgetStore {
   get(key: string): Promise<number>;
   setUntil(key: string, untilEpochMs: number): Promise<void>;
   getUntil(key: string): Promise<number | undefined>;
+  delete(key: string): Promise<void>;
 }
 
 export class MemoryBudgetStore implements BudgetStore {
@@ -34,6 +35,10 @@ export class MemoryBudgetStore implements BudgetStore {
 
   async getUntil(key: string): Promise<number | undefined> {
     return this.live(key)?.value;
+  }
+
+  async delete(key: string): Promise<void> {
+    this.counters.delete(key);
   }
 
   private live(key: string): { value: number; expiresAt: number } | undefined {
@@ -66,5 +71,9 @@ export class RedisBudgetStore implements BudgetStore {
   async getUntil(key: string): Promise<number | undefined> {
     const value = await this.redis.get(key);
     return value === null ? undefined : Number(value);
+  }
+
+  async delete(key: string): Promise<void> {
+    await this.redis.del(key);
   }
 }
