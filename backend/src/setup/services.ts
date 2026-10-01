@@ -34,6 +34,9 @@ import { MailTransportRegistryService } from '../services/mail/mail-transport-re
 import { OutreachTemplateService } from '../services/outreach/outreach-template.service';
 import { OutreachService } from '../services/outreach/outreach.service';
 import { ReviewReminderService } from '../services/outreach/review-reminder.service';
+import { ApplyAgentService } from '../services/apply/apply-agent.service';
+import { BrowserService } from '../services/apply/browser.service';
+import { PortalSessionService } from '../services/apply/portal-session.service';
 
 /**
  * Single registration point for services. Each class is bound as
@@ -85,6 +88,10 @@ export const SERVICE_CLASSES: Constructor<unknown>[] = [
   OutreachTemplateService,
   OutreachService,
   ReviewReminderService,
+  // Assisted apply
+  BrowserService,
+  PortalSessionService,
+  ApplyAgentService,
 ];
 
 export function registerServices(app: Application, classes: Constructor<unknown>[] = SERVICE_CLASSES): void {

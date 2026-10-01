@@ -6,5 +6,6 @@ export * from './resume/candidate-profile.model';
 export * from './resume/resume.model';
 export * from './jobs/job-listing.model';
 export * from './applications/application.model';
+export * from './applications/portal-session.model';
 export * from './outreach/hiring-post.model';
 export * from './outreach/outreach.model';

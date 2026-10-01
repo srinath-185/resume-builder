@@ -17,6 +17,7 @@ export interface ProfileUpdate {
   dailyCaps?: Partial<DailyCaps>;
   defaultTemplateId?: string | null;
   hiringQueryTemplate?: string | null;
+  autoApplyOnApprove?: boolean;
 }
 
 const MAX_SEEDED_SKILLS = 40;
@@ -68,6 +69,7 @@ export class CandidateProfileService {
     if (patch.autoTailorThreshold !== undefined) data.autoTailorThreshold = patch.autoTailorThreshold;
     if (patch.dailyCaps) data.dailyCaps = { ...DEFAULT_DAILY_CAPS, ...before.dailyCaps, ...patch.dailyCaps };
     if (patch.defaultTemplateId !== undefined) data.defaultTemplateId = patch.defaultTemplateId ?? undefined;
+    if (patch.autoApplyOnApprove !== undefined) data.autoApplyOnApprove = patch.autoApplyOnApprove;
     if (patch.hiringQueryTemplate !== undefined) {
       const template = patch.hiringQueryTemplate?.trim();
       const problem = template ? validateHiringTemplate(template) : undefined;
