@@ -19,8 +19,13 @@ import { ResumeRenderService } from '../services/render/resume-render.service';
 import { ConnectorRegistryService } from '../services/jobs/connector-registry.service';
 import { JobDiscoveryService } from '../services/jobs/job-discovery.service';
 import { JobListingService } from '../services/jobs/job-listing.service';
-import { JobMatchService } from '../services/jobs/job-match.service';
+import { HIGH_MATCH_HANDLER, JobMatchService } from '../services/jobs/job-match.service';
 import { JobSourceService } from '../services/jobs/job-source.service';
+import { ApplicationLifecycleService } from '../services/tailoring/application-lifecycle.service';
+import { ApplicationService } from '../services/tailoring/application.service';
+import { AutoTailorService } from '../services/tailoring/auto-tailor.service';
+import { JdKeywordService } from '../services/tailoring/jd-keyword.service';
+import { ResumeTailorService } from '../services/tailoring/resume-tailor.service';
 
 /**
  * Single registration point for services. Each class is bound as
@@ -56,10 +61,18 @@ export const SERVICE_CLASSES: Constructor<unknown>[] = [
   JobDiscoveryService,
   JobMatchService,
   JobListingService,
+  // Tailoring and review
+  JdKeywordService,
+  ApplicationLifecycleService,
+  ApplicationService,
+  ResumeTailorService,
+  AutoTailorService,
 ];
 
 export function registerServices(app: Application, classes: Constructor<unknown>[] = SERVICE_CLASSES): void {
   for (const serviceClass of classes) {
     app.add(createBindingFromClass(serviceClass, { key: `services.${serviceClass.name}` }));
   }
+  // High-scoring matches are drafted automatically (still subject to review).
+  app.bind(HIGH_MATCH_HANDLER).toAlias('services.AutoTailorService');
 }

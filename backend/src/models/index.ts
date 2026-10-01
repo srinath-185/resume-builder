@@ -5,3 +5,4 @@ export * from './llm/llm-usage-log.model';
 export * from './resume/candidate-profile.model';
 export * from './resume/resume.model';
 export * from './jobs/job-listing.model';
+export * from './applications/application.model';
