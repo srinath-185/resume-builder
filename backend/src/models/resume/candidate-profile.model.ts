@@ -58,6 +58,10 @@ export class CandidateProfile extends OwnedEntity {
   @property({ type: 'date' })
   lastReviewReminderAt?: Date;
 
+  /** Start the assisted apply as soon as the user approves a tailored resume. */
+  @property({ type: 'boolean', default: false })
+  autoApplyOnApprove: boolean;
+
   constructor(data?: Partial<CandidateProfile>) {
     super(data);
   }

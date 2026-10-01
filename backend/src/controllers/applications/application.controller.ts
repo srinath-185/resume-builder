@@ -6,6 +6,7 @@ import { currentUserId } from '../../authentication/jwt.strategy';
 import { sendFile } from '../../common/utils/send-file.util';
 import { ApplicationStatus } from '../../domain/application-status';
 import { JobApplication } from '../../models';
+import { ApplyAgentService } from '../../services/apply/apply-agent.service';
 import { ApplicationReview, ApplicationService, VariantEdit } from '../../services/tailoring/application.service';
 
 const INSTRUCTIONS_BODY = {
@@ -19,7 +20,10 @@ const INSTRUCTIONS_BODY = {
 
 @authenticate('jwt')
 export class ApplicationController {
-  constructor(@inject('services.ApplicationService') private applications: ApplicationService) {}
+  constructor(
+    @inject('services.ApplicationService') private applications: ApplicationService,
+    @inject('services.ApplyAgentService') private applyAgent: ApplyAgentService,
+  ) {}
 
   /** Draft a resume tailored to this job. Returns the application in TAILORING; the draft arrives for review. */
   @post('/jobs/{id}/tailor')
@@ -75,9 +79,13 @@ export class ApplicationController {
     return this.applications.editVariant(currentUserId(profile), id, body);
   }
 
+  /** Approve the tailored resume. If the profile opted into auto-apply, the assisted apply starts next. */
   @post('/applications/{id}/approve')
-  approve(@inject(SecurityBindings.USER) profile: UserProfile, @param.path.string('id') id: string): Promise<JobApplication> {
-    return this.applications.approve(currentUserId(profile), id);
+  async approve(@inject(SecurityBindings.USER) profile: UserProfile, @param.path.string('id') id: string): Promise<JobApplication> {
+    const userId = currentUserId(profile);
+    const approved = await this.applications.approve(userId, id);
+    await this.applyAgent.applyIfAutoEnabled(userId, id);
+    return this.applications.get(userId, approved.id!);
   }
 
   @post('/applications/{id}/reject')
