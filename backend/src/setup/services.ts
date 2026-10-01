@@ -16,6 +16,11 @@ import { ResumeParseService } from '../services/resume/resume-parse.service';
 import { ResumeService } from '../services/resume/resume.service';
 import { TextExtractionService } from '../services/resume/text-extraction.service';
 import { ResumeRenderService } from '../services/render/resume-render.service';
+import { ConnectorRegistryService } from '../services/jobs/connector-registry.service';
+import { JobDiscoveryService } from '../services/jobs/job-discovery.service';
+import { JobListingService } from '../services/jobs/job-listing.service';
+import { JobMatchService } from '../services/jobs/job-match.service';
+import { JobSourceService } from '../services/jobs/job-source.service';
 
 /**
  * Single registration point for services. Each class is bound as
@@ -45,6 +50,12 @@ export const SERVICE_CLASSES: Constructor<unknown>[] = [
   ResumeParseService,
   ResumeService,
   ResumeRenderService,
+  // Jobs
+  ConnectorRegistryService,
+  JobSourceService,
+  JobDiscoveryService,
+  JobMatchService,
+  JobListingService,
 ];
 
 export function registerServices(app: Application, classes: Constructor<unknown>[] = SERVICE_CLASSES): void {

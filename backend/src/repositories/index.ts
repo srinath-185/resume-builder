@@ -3,3 +3,4 @@ export * from './audit-log.repository';
 export * from './user.repository';
 export * from './llm-usage-log.repository';
 export * from './resume.repository';
+export * from './job.repository';
