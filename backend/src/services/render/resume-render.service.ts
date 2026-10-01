@@ -40,7 +40,9 @@ export class ResumeRenderService {
 
   render(document: ResumeDocument, templateId?: string): Promise<Buffer> {
     const template = this.resolveTemplate(templateId);
-    return this.gate.run(() => this.toBuffer(document, template));
+    // pdfmake rewrites list items in place (strings become objects); never hand it the caller's document.
+    const copy = structuredClone(document);
+    return this.gate.run(() => this.toBuffer(copy, template));
   }
 
   private toBuffer(document: ResumeDocument, template: ResumeTemplate): Promise<Buffer> {

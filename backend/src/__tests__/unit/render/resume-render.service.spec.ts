@@ -20,6 +20,12 @@ describe('ResumeRenderService', () => {
     });
   }
 
+  it('does not mutate the document it renders', async () => {
+    const before = JSON.stringify(SAMPLE_RESUME_DOCUMENT);
+    await renderer.render(SAMPLE_RESUME_DOCUMENT, 'classic');
+    expect(JSON.stringify(SAMPLE_RESUME_DOCUMENT)).to.equal(before);
+  });
+
   it('defaults to the classic template', async () => {
     expect(renderer.resolveTemplate(undefined).id).to.equal('classic');
   });
