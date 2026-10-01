@@ -33,7 +33,7 @@ function Remove({ onClick, label }) {
  * Edits a structured resume. Bullets are one per line; skills are comma
  * separated. `highlight` (paths → reason) marks fields the reviewer must look at.
  */
-export function ResumeDocumentEditor({ document, onSave, saving, saveLabel, extraActions, highlight = {} }) {
+export function ResumeDocumentEditor({ document, onSave, saving, saveLabel, extraActions, highlight = {}, readOnly = false }) {
   const { t } = useTranslation();
   const { register, control, handleSubmit, formState } = useForm({ defaultValues: toResumeForm(document) });
   const experience = useFieldArray({ control, name: 'experience' });
@@ -45,6 +45,7 @@ export function ResumeDocumentEditor({ document, onSave, saving, saveLabel, extr
 
   return (
     <form onSubmit={handleSubmit(values => onSave(fromResumeForm(values)))} className="space-y-4" noValidate>
+      <fieldset disabled={readOnly} className="space-y-4">
       <Section title={t('resume.contact', 'Contact')}>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label={t('resume.name', 'Name')} error={formState.errors.contact?.name && t('resume.nameRequired', 'Name is required')} htmlFor="contact.name">
@@ -156,12 +157,15 @@ export function ResumeDocumentEditor({ document, onSave, saving, saveLabel, extr
         ))}
       </Section>
 
-      <div className="sticky bottom-0 flex flex-wrap justify-end gap-2 border-t border-slate-200 bg-white/95 py-3 backdrop-blur">
-        {extraActions}
-        <Button type="submit" loading={saving}>
-          {saveLabel ?? t('common.save', 'Save')}
-        </Button>
-      </div>
+      </fieldset>
+      {!readOnly && (
+        <div className="sticky bottom-0 flex flex-wrap justify-end gap-2 border-t border-slate-200 bg-white/95 py-3 backdrop-blur">
+          {extraActions}
+          <Button type="submit" loading={saving}>
+            {saveLabel ?? t('common.save', 'Save')}
+          </Button>
+        </div>
+      )}
     </form>
   );
 }

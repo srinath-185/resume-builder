@@ -1,4 +1,6 @@
-import { Briefcase, FileUser, LayoutDashboard, Plug, UserCog } from 'lucide-react';
+import { Briefcase, ClipboardCheck, FileUser, LayoutDashboard, Plug, UserCog } from 'lucide-react';
+import ApplicationsPage from '@/modules/Applications/ApplicationsPage';
+import ApplicationReviewPage from '@/screens/ApplicationReview/ApplicationReviewPage';
 import JobSourcesPage from '@/modules/Jobs/JobSourcesPage';
 import JobsPage from '@/modules/Jobs/JobsPage';
 import ProfilePage from '@/modules/Profile/ProfilePage';
@@ -16,6 +18,8 @@ export const APP_ROUTES = [
   { path: '/resumes/:id', element: <ResumeReviewPage /> },
   { path: '/profile', element: <ProfilePage />, nav: { label: 'Search profile', icon: UserCog, section: 'main' } },
   { path: '/jobs', element: <JobsPage />, nav: { label: 'Jobs', icon: Briefcase, section: 'search' } },
+  { path: '/applications', element: <ApplicationsPage />, nav: { label: 'Applications', icon: ClipboardCheck, section: 'search' } },
+  { path: '/applications/:id', element: <ApplicationReviewPage /> },
   { path: '/settings/job-sources', element: <JobSourcesPage />, nav: { label: 'Job sources', icon: Plug, section: 'settings' } },
 ];
 
