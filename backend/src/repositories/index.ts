@@ -5,3 +5,4 @@ export * from './llm-usage-log.repository';
 export * from './resume.repository';
 export * from './job.repository';
 export * from './application.repository';
+export * from './outreach.repository';

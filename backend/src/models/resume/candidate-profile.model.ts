@@ -51,6 +51,10 @@ export class CandidateProfile extends OwnedEntity {
   @property({ type: 'string' })
   defaultTemplateId?: string;
 
+  /** LinkedIn-style query for hiring posts; {title} and optional {location}. Empty = default. */
+  @property({ type: 'string' })
+  hiringQueryTemplate?: string;
+
   constructor(data?: Partial<CandidateProfile>) {
     super(data);
   }

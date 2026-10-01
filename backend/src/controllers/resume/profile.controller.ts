@@ -41,6 +41,7 @@ export class ProfileController {
                 properties: { tailor: CAP, apply: CAP, outreach: CAP },
               },
               defaultTemplateId: { type: 'string', maxLength: 60, nullable: true },
+              hiringQueryTemplate: { type: 'string', maxLength: 300, nullable: true },
             },
           },
         },

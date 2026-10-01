@@ -26,6 +26,9 @@ import { ApplicationService } from '../services/tailoring/application.service';
 import { AutoTailorService } from '../services/tailoring/auto-tailor.service';
 import { JdKeywordService } from '../services/tailoring/jd-keyword.service';
 import { ResumeTailorService } from '../services/tailoring/resume-tailor.service';
+import { ContactService } from '../services/outreach/contact.service';
+import { HiringPostService } from '../services/outreach/hiring-post.service';
+import { PostConnectorRegistryService } from '../services/outreach/post-connector-registry.service';
 
 /**
  * Single registration point for services. Each class is bound as
@@ -67,6 +70,10 @@ export const SERVICE_CLASSES: Constructor<unknown>[] = [
   ApplicationService,
   ResumeTailorService,
   AutoTailorService,
+  // Hiring posts and contacts
+  PostConnectorRegistryService,
+  ContactService,
+  HiringPostService,
 ];
 
 export function registerServices(app: Application, classes: Constructor<unknown>[] = SERVICE_CLASSES): void {
