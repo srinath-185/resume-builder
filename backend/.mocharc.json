@@ -1,0 +1,7 @@
+{
+  "spec": "dist/__tests__/**/*.spec.js",
+  "require": ["source-map-support/register", "dist/__tests__/setup.js"],
+  "timeout": 15000,
+  "exit": true,
+  "recursive": true
+}
