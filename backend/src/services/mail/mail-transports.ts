@@ -1,7 +1,9 @@
+import { promises as dns } from 'dns';
 import { OAuth2Client } from 'google-auth-library';
+import { BlockList, isIP } from 'net';
 import nodemailer from 'nodemailer';
 import MailComposer from 'nodemailer/lib/mail-composer';
-import { envInt, envString } from '../../common/config/env.util';
+import { envBool, envInt, envString } from '../../common/config/env.util';
 import { AppConfigurationError, UpstreamHttpError } from '../../common/errors';
 import { ResilientHttpClient } from '../../common/http/resilient-http.client';
 
@@ -44,6 +46,47 @@ export interface SmtpApi {
 
 /** Raised when Google rejects the stored refresh token (revoked, expired, password changed). */
 export class GmailAuthError extends Error {}
+
+/** The SMTP host is (or resolves to) an address the server must not connect to on a user's behalf. */
+export class SmtpHostNotAllowedError extends Error {}
+
+/** Loopback, private, link-local, carrier-grade NAT, multicast and reserved ranges. */
+const NON_PUBLIC = new BlockList();
+for (const [network, prefix] of [
+  ['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8], ['169.254.0.0', 16], ['172.16.0.0', 12],
+  ['192.0.0.0', 24], ['192.0.2.0', 24], ['192.168.0.0', 16], ['198.18.0.0', 15], ['198.51.100.0', 24], ['203.0.113.0', 24], ['224.0.0.0', 3],
+] as const) {
+  NON_PUBLIC.addSubnet(network, prefix, 'ipv4');
+}
+for (const [network, prefix] of [['::', 127], ['::1', 128], ['64:ff9b::', 96], ['100::', 64], ['2001:db8::', 32], ['fc00::', 7], ['fe80::', 10], ['ff00::', 8]] as const) {
+  NON_PUBLIC.addSubnet(network, prefix, 'ipv6');
+}
+
+export function isPublicAddress(address: string): boolean {
+  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(address);
+  if (mapped) return isPublicAddress(mapped[1]);
+  const family = isIP(address);
+  if (family === 0) return false;
+  return !NON_PUBLIC.check(address, family === 4 ? 'ipv4' : 'ipv6');
+}
+
+/**
+ * Resolves a user-supplied SMTP host to one public address, so the server
+ * cannot be pointed at its own network (SSRF). The caller connects to that
+ * address, not the name, so a DNS answer cannot change between check and use.
+ * SMTP_ALLOW_PRIVATE_HOSTS=true turns the check off for a self-hosted relay.
+ */
+export async function resolveSmtpAddress(host: string, lookup: (host: string) => Promise<string[]> = defaultLookup): Promise<string> {
+  if (envBool('SMTP_ALLOW_PRIVATE_HOSTS', false)) return host;
+  const addresses = isIP(host) ? [host] : await lookup(host).catch(() => [] as string[]);
+  if (addresses.length === 0) throw new SmtpHostNotAllowedError(`SMTP host ${host} could not be resolved`);
+  if (!addresses.every(isPublicAddress)) throw new SmtpHostNotAllowedError(`SMTP host ${host} points to a private or reserved address`);
+  return addresses[0];
+}
+
+async function defaultLookup(host: string): Promise<string[]> {
+  return (await dns.lookup(host, { all: true, verbatim: true })).map(entry => entry.address);
+}
 
 export const GMAIL_SCOPES = ['https://www.googleapis.com/auth/gmail.send', 'openid', 'email'];
 
@@ -129,11 +172,11 @@ export class GoogleGmailApi implements GmailApi {
 /** Any SMTP server, including Gmail with an App Password (smtp.gmail.com:465). */
 export class NodemailerSmtpApi implements SmtpApi {
   async verify(config: SmtpConfig): Promise<void> {
-    await this.transport(config).verify();
+    await (await this.transport(config)).verify();
   }
 
   async send(config: SmtpConfig, mail: OutgoingMail): Promise<SentMail> {
-    const info: { messageId?: string } = await this.transport(config).sendMail({
+    const info: { messageId?: string } = await (await this.transport(config)).sendMail({
       from: fromAddress(mail.from),
       to: mail.to,
       subject: mail.subject,
@@ -146,10 +189,14 @@ export class NodemailerSmtpApi implements SmtpApi {
     return { messageId: info.messageId ?? mail.messageId };
   }
 
-  private transport(config: SmtpConfig) {
+  private async transport(config: SmtpConfig) {
+    const address = await resolveSmtpAddress(config.host);
     return nodemailer.createTransport({
-      host: config.host,
+      host: address,
       port: config.port,
+      // Certificates are still checked against the name the user entered.
+      // (SNI may not carry an IP literal, so it is only set for names.)
+      ...(isIP(config.host) ? {} : { tls: { servername: config.host } }),
       secure: config.secure,
       auth: { user: config.user, pass: config.pass },
       connectionTimeout: 15_000,

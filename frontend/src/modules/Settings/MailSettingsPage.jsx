@@ -1,9 +1,17 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { z } from 'zod';
-import { useDisconnectMailMutation, useMailConnectorQuery, useSaveSmtpMutation, useStartGmailMutation, useTestMailMutation } from '@/app/api/outreach';
+import {
+  useConfirmGmailMutation,
+  useDisconnectMailMutation,
+  useMailConnectorQuery,
+  useSaveSmtpMutation,
+  useStartGmailMutation,
+  useTestMailMutation,
+} from '@/app/api/outreach';
 import { Alert, Badge, Button, Card, ErrorMessage, Field, Input, PageHeader, Spinner } from '@/common/components/ui';
 
 export const SmtpSchema = z.object({
@@ -22,9 +30,28 @@ const GMAIL_RESULT = {
   cancelled: { tone: 'amber', text: 'Gmail sign-in was cancelled.' },
 };
 
+/**
+ * Google sends the browser back with `?gmail=confirm&pending=…`. The grant is
+ * claimed with this user's session (so a consent link from someone else can
+ * never attach this mailbox to their account), then the one-time value is
+ * dropped from the address bar.
+ */
+function useGmailConfirmation(params, setParams) {
+  const [confirmGmail, state] = useConfirmGmailMutation();
+  const started = useRef(false);
+  const pending = params.get('gmail') === 'confirm' ? params.get('pending') : null;
+  useEffect(() => {
+    if (!pending || started.current) return;
+    started.current = true;
+    confirmGmail(pending).then(result => setParams({ gmail: result.error ? 'error' : 'connected' }, { replace: true }));
+  }, [pending, confirmGmail, setParams]);
+  return state;
+}
+
 export default function MailSettingsPage() {
   const { t } = useTranslation();
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
+  const confirmState = useGmailConfirmation(params, setParams);
   const { data: mail, isLoading, error } = useMailConnectorQuery();
   const [startGmail, gmailState] = useStartGmailMutation();
   const [saveSmtp, smtpState] = useSaveSmtpMutation();
@@ -41,13 +68,13 @@ export default function MailSettingsPage() {
     if (result.data?.url) window.location.assign(result.data.url);
   };
 
-  if (isLoading) return <Spinner />;
+  if (isLoading || confirmState.isLoading) return <Spinner />;
   return (
     <div>
       <PageHeader title={t('mail.title', 'Mailbox')} description={t('mail.description', 'Outreach is sent from your own address. Credentials are encrypted and never shown again.')} />
       <div className="space-y-4">
         {gmailResult && <Alert tone={gmailResult.tone}>{t(`mail.gmail.${params.get('gmail')}`, gmailResult.text)}</Alert>}
-        <ErrorMessage error={error ?? gmailState.error ?? testState.error ?? disconnectState.error} />
+        <ErrorMessage error={error ?? confirmState.error ?? gmailState.error ?? testState.error ?? disconnectState.error} />
 
         <Card
           title={t('mail.current', 'Current connection')}

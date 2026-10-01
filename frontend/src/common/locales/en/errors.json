@@ -14,6 +14,12 @@
   "INVALID_CREDENTIALS": "Email or password is incorrect.",
   "PASSWORD_TOO_WEAK": "Use at least 8 characters for your password.",
   "TOKEN_INVALID": "Your session has expired. Please sign in again.",
+  "PASSWORD_TOO_LONG": "That password is too long. Use at most 72 characters.",
+  "ACCOUNT_DISABLED": "This account has been disabled. Contact an administrator.",
+  "REGISTRATION_CLOSED": "Sign-up is closed. Ask an administrator for an account.",
+
+  "USER_NOT_FOUND": "User not found.",
+  "ADMIN_SELF_CHANGE": "You can't change your own role or status.",
 
   "LLM_NOT_CONFIGURED": "No AI provider is set up yet. Add a free Groq or Gemini key on the server.",
   "LLM_UNAVAILABLE": "The AI providers could not complete this request. Try again.",
@@ -56,6 +62,7 @@
   "GMAIL_NOT_CONFIGURED": "Gmail sign-in isn't set up on this server. Use SMTP instead.",
   "OAUTH_STATE_INVALID": "The sign-in link expired. Start again.",
   "MAIL_CONNECT_FAILED": "Couldn't connect to your mailbox.",
+  "SMTP_HOST_NOT_ALLOWED": "That SMTP server can't be used. Use a public mail server on port 25, 465, 587 or 2525.",
   "MAIL_NOT_CONNECTED": "Connect Gmail or SMTP before sending email.",
   "MAIL_AUTH_EXPIRED": "Your mailbox connection expired. Reconnect it.",
   "TEMPLATE_INVALID": "The template uses an unknown placeholder.",

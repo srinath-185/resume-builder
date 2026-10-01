@@ -1,6 +1,6 @@
 import { createBrowserRouter, Navigate, useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import { selectToken } from './authSlice';
+import { canSee, selectRole, selectToken } from './authSlice';
 import { APP_ROUTES } from './routes';
 import AppLayout from '@/layouts/AppLayout';
 import Login from '@/screens/Auth/Login';
@@ -14,6 +14,12 @@ export function RequireAuth({ children }) {
   return children;
 }
 
+/** Hides role-restricted pages from other users; the API refuses their requests regardless. */
+export function RequireRole({ route, children }) {
+  const role = useSelector(selectRole);
+  return canSee(route, role) ? children : <NotFound />;
+}
+
 export function routeConfig() {
   return [
     { path: '/login', element: <Login /> },
@@ -24,7 +30,10 @@ export function routeConfig() {
           <AppLayout />
         </RequireAuth>
       ),
-      children: [...APP_ROUTES.map(({ path, element }) => ({ path, element })), { path: '*', element: <NotFound /> }],
+      children: [
+        ...APP_ROUTES.map(route => ({ path: route.path, element: route.roles ? <RequireRole route={route}>{route.element}</RequireRole> : route.element })),
+        { path: '*', element: <NotFound /> },
+      ],
     },
   ];
 }

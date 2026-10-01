@@ -1,10 +1,12 @@
 import { Application, Constructor, createBindingFromClass } from '@loopback/core';
 import { QueueService } from '../queue/queue.service';
+import { AdminService } from '../services/admin/admin.service';
 import { AuditService } from '../services/audit/audit.service';
 import { AuthService } from '../services/auth/auth.service';
 import { JwtService } from '../services/auth/jwt.service';
 import { EncryptionService } from '../services/common/encryption.service';
 import { LoggerService } from '../services/common/logger.service';
+import { RateLimitService } from '../services/common/rate-limit.service';
 import { LlmBudgetService } from '../services/llm/budget/llm-budget.service';
 import { LlmProviderRegistryService } from '../services/llm/llm-provider-registry.service';
 import { LlmRouterService } from '../services/llm/llm-router.service';
@@ -49,9 +51,11 @@ export const SERVICE_CLASSES: Constructor<unknown>[] = [
   EncryptionService,
   AuditService,
   QueueService,
-  // Auth
+  RateLimitService,
+  // Auth and administration
   JwtService,
   AuthService,
+  AdminService,
   // AI
   LlmBudgetService,
   LlmProviderRegistryService,

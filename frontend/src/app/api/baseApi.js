@@ -36,7 +36,7 @@ export async function envelopeBaseQuery(args, api, extraOptions) {
   return { data: data && typeof data === 'object' && data.success === true && 'data' in data ? data.data : data };
 }
 
-export const TAGS = ['Me', 'Resume', 'Profile', 'Template', 'Job', 'JobSource', 'Application', 'HiringPost', 'PostSource', 'Contact', 'Outreach', 'OutreachTemplate', 'Mail', 'PortalSession', 'Llm'];
+export const TAGS = ['Me', 'Resume', 'Profile', 'Template', 'Job', 'JobSource', 'Application', 'HiringPost', 'PostSource', 'Contact', 'Outreach', 'OutreachTemplate', 'Mail', 'PortalSession', 'Llm', 'AdminUser', 'AuditLog'];
 
 /** Feature files add their endpoints with `api.injectEndpoints`. */
 export const api = createApi({

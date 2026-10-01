@@ -1,4 +1,7 @@
-import { Bot, Briefcase, ClipboardCheck, Contact, FileText, FileUser, LayoutDashboard, Linkedin, Mail, Megaphone, Plug, Send, UserCog } from 'lucide-react';
+import { Bot, Briefcase, ClipboardCheck, Contact, FileText, FileUser, Gauge, LayoutDashboard, Linkedin, Mail, Megaphone, Plug, ScrollText, Send, UserCog, Users } from 'lucide-react';
+import AdminUsagePage from '@/modules/Admin/AdminUsagePage';
+import AuditLogPage from '@/modules/Admin/AuditLogPage';
+import UsersPage from '@/modules/Admin/UsersPage';
 import ApplicationsPage from '@/modules/Applications/ApplicationsPage';
 import JobSourcesPage from '@/modules/Jobs/JobSourcesPage';
 import JobsPage from '@/modules/Jobs/JobsPage';
@@ -16,9 +19,12 @@ import ApplicationReviewPage from '@/screens/ApplicationReview/ApplicationReview
 import Dashboard from '@/screens/Dashboard';
 import ResumeReviewPage from '@/screens/ResumeReview/ResumeReviewPage';
 
+const ADMINS = ['admin', 'superadmin'];
+
 /**
  * Single source of truth for authenticated pages. `nav` entries appear in the
- * sidebar, grouped by section. Feature branches append here.
+ * sidebar, grouped by section. `roles` limits who sees a page (display only:
+ * the API checks the role on every admin request). Feature branches append here.
  */
 export const APP_ROUTES = [
   { path: '/', element: <Dashboard />, nav: { label: 'Dashboard', icon: LayoutDashboard, section: 'main' } },
@@ -37,6 +43,9 @@ export const APP_ROUTES = [
   { path: '/settings/job-sources', element: <JobSourcesPage />, nav: { label: 'Job sources', icon: Plug, section: 'settings' } },
   { path: '/settings/linkedin', element: <LinkedInSessionPage />, nav: { label: 'LinkedIn session', icon: Linkedin, section: 'settings' } },
   { path: '/settings/ai', element: <AiUsagePage />, nav: { label: 'AI usage', icon: Bot, section: 'settings' } },
+  { path: '/admin/users', element: <UsersPage />, roles: ADMINS, nav: { label: 'Users', icon: Users, section: 'admin' } },
+  { path: '/admin/audit-log', element: <AuditLogPage />, roles: ADMINS, nav: { label: 'Audit log', icon: ScrollText, section: 'admin' } },
+  { path: '/admin/ai-usage', element: <AdminUsagePage />, roles: ADMINS, nav: { label: 'AI usage (all)', icon: Gauge, section: 'admin' } },
 ];
 
 export const NAV_SECTIONS = [
@@ -44,4 +53,5 @@ export const NAV_SECTIONS = [
   { id: 'search', label: 'Job search' },
   { id: 'outreach', label: 'Outreach' },
   { id: 'settings', label: 'Settings' },
+  { id: 'admin', label: 'Administration' },
 ];

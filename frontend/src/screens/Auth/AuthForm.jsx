@@ -7,6 +7,14 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { signedIn } from '@/app/authSlice';
 import { Button, ErrorMessage, Field, Input } from '@/common/components/ui';
 
+/**
+ * Only same-site paths. Browsers read "//host" and "/\host" as another site,
+ * and strip tabs/newlines before parsing, so all of those are refused.
+ */
+export function isSafeNext(next) {
+  return typeof next === 'string' && /^\/(?![/\\])/.test(next) && !/[\\\s]/.test(next);
+}
+
 /** Shared shell for login and registration: form, submit, store the session, go back where the user was. */
 export function AuthForm({ title, schema, fields, mutation, submitLabel, footer }) {
   const { t } = useTranslation();
@@ -21,7 +29,7 @@ export function AuthForm({ title, schema, fields, mutation, submitLabel, footer 
     if (result.data) {
       dispatch(signedIn(result.data));
       const next = params.get('next');
-      navigate(next && next.startsWith('/') && !next.startsWith('//') ? next : '/', { replace: true });
+      navigate(isSafeNext(next) ? next : '/', { replace: true });
     }
   };
 

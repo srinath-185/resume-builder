@@ -17,3 +17,18 @@ export async function givenUser(client: Client, name = 'Test User'): Promise<Tes
   const { token, user } = response.body.data;
   return { id: user.id, email, token, auth: { Authorization: `Bearer ${token}` } };
 }
+
+/** Runs `fn` with environment overrides, restoring the previous values afterwards. */
+export async function withEnv<T>(vars: Record<string, string | undefined>, fn: () => Promise<T>): Promise<T> {
+  const previous = Object.fromEntries(Object.keys(vars).map(key => [key, process.env[key]]));
+  Object.assign(process.env, vars);
+  for (const [key, value] of Object.entries(vars)) if (value === undefined) delete process.env[key];
+  try {
+    return await fn();
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+}

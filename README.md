@@ -27,6 +27,25 @@ npm run dev               # http://127.0.0.1:3100/api, explorer at /api/explorer
 
 Every response is `{ success: true, data }` or `{ success: false, error: { code, message, details? } }`.
 
+### Administration
+
+Accounts have a role: `user`, `admin` or `superadmin`. Nobody can choose a role at sign-up. Create the
+first superadmin (or promote an existing account) from the server; the password is prompted for, never
+passed on the command line:
+
+```bash
+npm run build
+npm run admin:create -- --email you@example.com --name "Your Name"
+```
+
+Admins get the Administration pages (users, audit log, AI usage across users). They can disable accounts
+and sign users out everywhere; only a superadmin can grant roles or manage other admins, and nobody can
+change their own role or status. Admins never see resumes, mailbox credentials or portal cookies.
+
+Sign-up is `REGISTRATION_MODE=open` by default in development and closed when `NODE_ENV=production`;
+with it closed, admins create accounts. Admin sessions last `JWT_ADMIN_EXPIRES_IN` (1h). Behind a reverse
+proxy, set `TRUST_PROXY` so login rate limits see the real client address.
+
 ## Frontend
 
 ```bash

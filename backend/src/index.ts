@@ -8,7 +8,7 @@ export async function main(options: ApplicationConfig = {}): Promise<ResumeBuild
   const app = new ResumeBuilderApplication(options);
   await app.boot();
   await app.start();
-  console.log(`Resume Builder API listening at ${app.restServer.url} (explorer: ${app.restServer.url}/explorer)`);
+  console.log(`Resume Builder API listening at ${app.restServer.url}`);
   return app;
 }
 

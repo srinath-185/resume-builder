@@ -1,17 +1,19 @@
 import clsx from 'clsx';
 import { FileText, LogOut, Menu } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch, useSelector } from 'react-redux';
 import { NavLink, Outlet } from 'react-router-dom';
-import { loggedOut, selectUser } from '@/app/authSlice';
+import { useMeQuery } from '@/app/api/auth';
+import { canSee, loggedOut, selectRole, selectUser, userRefreshed } from '@/app/authSlice';
 import { APP_ROUTES, NAV_SECTIONS } from '@/app/routes';
 
 function NavItems({ onNavigate }) {
+  const role = useSelector(selectRole);
   return (
     <nav className="space-y-5">
       {NAV_SECTIONS.map(section => {
-        const items = APP_ROUTES.filter(route => route.nav?.section === section.id);
+        const items = APP_ROUTES.filter(route => route.nav?.section === section.id && canSee(route, role));
         if (items.length === 0) return null;
         return (
           <div key={section.id}>
@@ -48,6 +50,11 @@ export default function AppLayout() {
   const dispatch = useDispatch();
   const user = useSelector(selectUser);
   const [open, setOpen] = useState(false);
+  // The stored profile can be stale (e.g. a role granted since sign-in).
+  const { data: me } = useMeQuery();
+  useEffect(() => {
+    if (me && (me.role !== user?.role || me.name !== user?.name)) dispatch(userRefreshed(me));
+  }, [me, user, dispatch]);
 
   return (
     <div className="flex min-h-full">

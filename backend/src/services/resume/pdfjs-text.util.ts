@@ -1,11 +1,13 @@
-// Legacy build: CommonJS and Node-compatible. Loaded lazily so the API boots fast.
-type PdfJs = typeof import('pdfjs-dist/legacy/build/pdf.js');
+// Legacy build: Node-compatible. pdfjs-dist 4 ships only ES modules, so it is
+// loaded with a real dynamic import (TypeScript would turn `import()` into
+// `require()` under CommonJS). Loaded lazily so the API boots fast.
+type PdfJs = typeof import('pdfjs-dist/legacy/build/pdf.mjs');
 
-let pdfjs: PdfJs | undefined;
+const importEsm = new Function('specifier', 'return import(specifier)') as (specifier: string) => Promise<PdfJs>;
+let pdfjs: Promise<PdfJs> | undefined;
 
-function load(): PdfJs {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  pdfjs ??= require('pdfjs-dist/legacy/build/pdf.js') as PdfJs;
+function load(): Promise<PdfJs> {
+  pdfjs ??= importEsm('pdfjs-dist/legacy/build/pdf.mjs');
   return pdfjs;
 }
 
@@ -16,7 +18,7 @@ const MAX_PAGES = 10;
  * a hostile PDF cannot execute code through the font path; fonts are not loaded.
  */
 export async function pdfjsText(buffer: Buffer): Promise<string> {
-  const lib = load();
+  const lib = await load();
   const document = await lib.getDocument({
     data: new Uint8Array(buffer),
     isEvalSupported: false,

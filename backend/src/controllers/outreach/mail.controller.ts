@@ -26,7 +26,11 @@ export class MailController {
     return this.mail.startGmail(currentUserId(profile));
   }
 
-  /** Google redirects here. Unauthenticated by design: the signed `state` identifies the user. */
+  /**
+   * Google redirects here. Unauthenticated by design: the signed `state` says
+   * who started the sign-in. The grant is handed to the app as an encrypted
+   * pending token, which the app confirms with the user's session below.
+   */
   @get('/mail-connector/gmail/callback')
   async gmailCallback(
     @param.query.string('code') code: string | undefined,
@@ -34,17 +38,33 @@ export class MailController {
     @param.query.string('error') error: string | undefined,
     @inject(RestBindings.Http.RESPONSE) response: Response,
   ): Promise<Response> {
-    let status = 'connected';
-    if (error || !code || !state) status = 'cancelled';
-    else {
+    let target = '/settings/mail?gmail=cancelled';
+    if (!error && code && state) {
       try {
-        await this.mail.completeGmail(code, state);
+        const pending = await this.mail.completeGmail(code, state);
+        target = `/settings/mail?gmail=confirm&pending=${encodeURIComponent(pending)}`;
       } catch {
-        status = 'error';
+        target = '/settings/mail?gmail=error';
       }
     }
-    response.redirect(frontendUrl(`/settings/mail?gmail=${status}`));
+    response.redirect(frontendUrl(target));
     return response;
+  }
+
+  @authenticate('jwt')
+  @post('/mail-connector/gmail/confirm')
+  confirmGmail(
+    @inject(SecurityBindings.USER) profile: UserProfile,
+    @requestBody({
+      content: {
+        'application/json': {
+          schema: { type: 'object', required: ['pending'], additionalProperties: false, properties: { pending: { type: 'string', minLength: 1, maxLength: 4096 } } },
+        },
+      },
+    })
+    body: { pending: string },
+  ): Promise<MailConnectorView> {
+    return this.mail.confirmGmail(currentUserId(profile), body.pending);
   }
 
   @authenticate('jwt')

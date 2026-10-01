@@ -31,7 +31,7 @@ node "$HERE/fake-site.js" > $W/site.log 2>&1 & echo $! >> $W/pids
 for _ in $(seq 1 60); do curl -s -o /dev/null http://127.0.0.1:3999/ && [ -s $W/site-url ] && break; sleep 0.5; done
 echo "fakes up: llm $(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3999/) · site $(cat $W/site-url)"
 
-(cd "$REPO/backend" && PORT=3101 HOST=127.0.0.1 NODE_ENV=production LOG_LEVEL=warn \
+(cd "$REPO/backend" && PORT=3101 HOST=127.0.0.1 NODE_ENV=production LOG_LEVEL=warn REGISTRATION_MODE=open \
   MONGODB_URL=mongodb://127.0.0.1:27999/rb_smoke JWT_SECRET=smoke-secret-0123456789-abcdefghij ENCRYPTION_KEY=$(printf 'ab%.0s' $(seq 32)) \
   GROQ_API_KEY=smoke-key GROQ_BASE_URL=http://127.0.0.1:3999 LLM_PROVIDER_CHAIN=groq \
   QUEUE_DRIVER=inline RUN_SCHEDULED_JOBS=false STORAGE_DIR=$W/storage APPLY_FORM_HOSTS=127.0.0.1 CORS_ORIGIN=http://127.0.0.1:5301 \
