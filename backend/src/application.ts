@@ -1,8 +1,10 @@
+import { AuthenticationComponent, registerAuthenticationStrategy } from '@loopback/authentication';
 import { BootMixin } from '@loopback/boot';
 import { ApplicationConfig } from '@loopback/core';
 import { RepositoryMixin } from '@loopback/repository';
 import { RestApplication, RestBindings } from '@loopback/rest';
 import { RestExplorerBindings, RestExplorerComponent } from '@loopback/rest-explorer';
+import { JwtAuthenticationStrategy } from './authentication/jwt.strategy';
 import { envList } from './common/config/env.util';
 import { AppRejectProvider } from './providers/app-reject.provider';
 import { registerCrons } from './setup/crons';
@@ -34,6 +36,9 @@ export class ResumeBuilderApplication extends BootMixin(RepositoryMixin(RestAppl
 
     this.configure(RestExplorerBindings.COMPONENT).to({ path: '/explorer' });
     this.component(RestExplorerComponent);
+
+    this.component(AuthenticationComponent);
+    registerAuthenticationStrategy(this, JwtAuthenticationStrategy);
 
     registerServices(this);
     registerProcessors(this);
