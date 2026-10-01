@@ -36,6 +36,7 @@
     "multer": "2.0.2",
     "opossum": "8.5.0",
     "pdfjs-dist": "3.11.174",
+    "pdfmake": "0.2.23",
     "source-map-support": "0.5.21",
     "tslib": "^2.6.2",
     "zod": "4.3.6"
@@ -48,6 +49,7 @@
     "@types/multer": "2.0.0",
     "@types/node": "18.19.0",
     "@types/opossum": "8.1.9",
+    "@types/pdfmake": "0.2.11",
     "mocha": "10.8.2",
     "rimraf": "^5.0.10",
     "typescript": "5.2.2"
