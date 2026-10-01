@@ -44,6 +44,18 @@ only where the UI is not list-and-form shaped (resume review, application review
 Error messages are keyed by the backend's error codes in `src/common/locales/en/errors.json`; a test
 fails if the backend adds a code without a message.
 
+## End-to-end smoke test
+
+`scripts/e2e-smoke/run.sh` runs the whole flow against real services and tears everything down:
+a throwaway `mongod` on port 27999, a fake OpenAI-compatible LLM wired in through `GROQ_BASE_URL`,
+the compiled API, the built frontend behind `vite preview`, and real headless Chrome applying on a
+local job site. It needs `mongod` and Chrome on the machine and fails fast if any of its ports
+(27999, 3999, 3101, 5301) is already taken.
+
+```bash
+(cd frontend && npm run build) && scripts/e2e-smoke/run.sh
+```
+
 ## Branching
 
 One branch per feature (`feature/<name>`), merged into `main` with `--no-ff` so each feature stays

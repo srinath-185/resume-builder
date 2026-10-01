@@ -2,6 +2,7 @@ import { BindingScope, inject, injectable } from '@loopback/core';
 import { DataObject } from '@loopback/repository';
 import { randomUUID } from 'crypto';
 import { AppBusinessError, AppValidationError, ERROR_CODES } from '../../common/errors';
+import { idString } from '../../common/utils/id.util';
 import { ApplicationStatus, HAS_APPROVED_VARIANT } from '../../domain/application-status';
 import { ResumeDocumentSchema, resumeToText } from '../../domain/resume-document';
 import { FormAnswer, JobApplication, JobListing, JobListingStatus, ResumeVariant, VariantStatus } from '../../models';
@@ -74,13 +75,14 @@ export class ApplicationService {
   async list(userId: string, status?: ApplicationStatus): Promise<ApplicationSummary[]> {
     const where = status && Object.values(ApplicationStatus).includes(status) ? { status } : undefined;
     const applications = await this.applications.findOwned(userId, { where, order: ['updatedAt DESC'], limit: 200 });
-    const listingIds = [...new Set(applications.map(application => application.jobListingId))];
+    // The Mongo connector returns ObjectId instances for ObjectId-typed fields; key by string or lookups miss.
+    const listingIds = [...new Set(applications.map(application => idString(application.jobListingId)))];
     const listings = listingIds.length
       ? await this.listings.findOwned(userId, { where: { id: { inq: listingIds } }, fields: { id: true, title: true, company: true, location: true } })
       : [];
-    const byId = new Map(listings.map(listing => [listing.id, listing]));
+    const byId = new Map(listings.map(listing => [idString(listing.id), listing]));
     return applications.map(application => {
-      const listing = byId.get(application.jobListingId);
+      const listing = byId.get(idString(application.jobListingId));
       return { ...(application.toJSON() as DataObject<JobApplication>), jobTitle: listing?.title, company: listing?.company, location: listing?.location };
     });
   }

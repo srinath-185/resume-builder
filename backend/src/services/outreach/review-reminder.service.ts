@@ -1,5 +1,6 @@
 import { BindingScope, inject, injectable } from '@loopback/core';
 import { envInt } from '../../common/config/env.util';
+import { idString } from '../../common/utils/id.util';
 import { ApplicationStatus } from '../../domain/application-status';
 import { MailConnectorStatus } from '../../models';
 import { CandidateProfileRepository, JobApplicationRepository, MailConnectorRepository, UserRepository } from '../../repositories';
@@ -26,7 +27,10 @@ export class ReviewReminderService {
     const staleBefore = new Date(now.getTime() - envInt('REVIEW_REMINDER_DAYS', 2) * 86_400_000);
     const waiting = await this.applications.find({ where: { status: ApplicationStatus.REVIEW_PENDING, updatedAt: { lte: staleBefore } }, fields: { userId: true }, limit: 5000 });
     const counts = new Map<string, number>();
-    for (const application of waiting) counts.set(application.userId, (counts.get(application.userId) ?? 0) + 1);
+    for (const application of waiting) {
+      const key = idString(application.userId);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
 
     const reminded: string[] = [];
     for (const [userId, count] of counts) {

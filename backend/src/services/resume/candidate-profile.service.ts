@@ -1,5 +1,6 @@
 import { BindingScope, inject, injectable } from '@loopback/core';
 import { AppValidationError, ERROR_CODES } from '../../common/errors';
+import { idString } from '../../common/utils/id.util';
 import { validateHiringTemplate } from '../../domain/hiring-query';
 import { ResumeDocument, yearsOfExperience } from '../../domain/resume-document';
 import { CandidateProfile, DEFAULT_AUTO_TAILOR_THRESHOLD, DEFAULT_DAILY_CAPS, DailyCaps } from '../../models';
@@ -101,7 +102,7 @@ export class CandidateProfileService {
   /** Users the scheduler should search for. Paged so one tick stays bounded. */
   async userIdsWithTargets(limit = 1000): Promise<string[]> {
     const profiles = await this.profiles.find({ fields: { userId: true, targetTitles: true }, limit });
-    return profiles.filter(profile => (profile.targetTitles ?? []).length > 0).map(profile => profile.userId);
+    return profiles.filter(profile => (profile.targetTitles ?? []).length > 0).map(profile => idString(profile.userId));
   }
 
   async setPrimaryResume(userId: string, resumeId: string | undefined): Promise<void> {
