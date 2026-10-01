@@ -1,4 +1,5 @@
 import { globalInterceptor, Interceptor, InvocationContext, InvocationResult, Provider, ValueOrPromise } from '@loopback/core';
+import { ServerResponse } from 'http';
 import { Readable } from 'stream';
 
 export interface SuccessEnvelope<T> {
@@ -6,10 +7,14 @@ export interface SuccessEnvelope<T> {
   data: T;
 }
 
-/** Binary bodies and streams are written as-is; everything else gets the success envelope. */
+/**
+ * Binary bodies, streams and responses a controller already wrote (file
+ * downloads return the response object) pass through; everything else gets
+ * the success envelope.
+ */
 export function shouldWrap(result: unknown): boolean {
   if (result === undefined || result === null) return false;
-  if (Buffer.isBuffer(result) || result instanceof Readable) return false;
+  if (Buffer.isBuffer(result) || result instanceof Readable || result instanceof ServerResponse) return false;
   return !(typeof result === 'object' && 'success' in (result as object) && 'data' in (result as object));
 }
 

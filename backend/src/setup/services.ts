@@ -9,6 +9,12 @@ import { LlmBudgetService } from '../services/llm/budget/llm-budget.service';
 import { LlmProviderRegistryService } from '../services/llm/llm-provider-registry.service';
 import { LlmRouterService } from '../services/llm/llm-router.service';
 import { LlmStatusService } from '../services/llm/llm-status.service';
+import { FileUploadService } from '../services/common/file-upload.service';
+import { StorageService } from '../services/common/storage.service';
+import { CandidateProfileService } from '../services/resume/candidate-profile.service';
+import { ResumeParseService } from '../services/resume/resume-parse.service';
+import { ResumeService } from '../services/resume/resume.service';
+import { TextExtractionService } from '../services/resume/text-extraction.service';
 
 /**
  * Single registration point for services. Each class is bound as
@@ -29,6 +35,14 @@ export const SERVICE_CLASSES: Constructor<unknown>[] = [
   LlmProviderRegistryService,
   LlmRouterService,
   LlmStatusService,
+  // Files
+  StorageService,
+  FileUploadService,
+  // Resumes
+  TextExtractionService,
+  CandidateProfileService,
+  ResumeParseService,
+  ResumeService,
 ];
 
 export function registerServices(app: Application, classes: Constructor<unknown>[] = SERVICE_CLASSES): void {
