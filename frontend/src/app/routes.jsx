@@ -1,11 +1,19 @@
-import { LayoutDashboard } from 'lucide-react';
+import { FileUser, LayoutDashboard, UserCog } from 'lucide-react';
+import ProfilePage from '@/modules/Profile/ProfilePage';
+import ResumesPage from '@/modules/Resumes/ResumesPage';
 import Dashboard from '@/screens/Dashboard';
+import ResumeReviewPage from '@/screens/ResumeReview/ResumeReviewPage';
 
 /**
  * Single source of truth for authenticated pages. `nav` entries appear in the
  * sidebar, grouped by section. Feature branches append here.
  */
-export const APP_ROUTES = [{ path: '/', element: <Dashboard />, nav: { label: 'Dashboard', icon: LayoutDashboard, section: 'main' } }];
+export const APP_ROUTES = [
+  { path: '/', element: <Dashboard />, nav: { label: 'Dashboard', icon: LayoutDashboard, section: 'main' } },
+  { path: '/resumes', element: <ResumesPage />, nav: { label: 'Resumes', icon: FileUser, section: 'main' } },
+  { path: '/resumes/:id', element: <ResumeReviewPage /> },
+  { path: '/profile', element: <ProfilePage />, nav: { label: 'Search profile', icon: UserCog, section: 'main' } },
+];
 
 export const NAV_SECTIONS = [
   { id: 'main', label: null },
