@@ -1,0 +1,50 @@
+{
+  "name": "resume-builder-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Resume tailoring, job discovery and assisted apply API (LoopBack 4)",
+  "main": "dist/index.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "clean": "rimraf dist *.tsbuildinfo",
+    "build": "tsc",
+    "rebuild": "npm run clean && npm run build",
+    "start": "node -r source-map-support/register dist/index.js",
+    "dev": "npm run build && node -r source-map-support/register dist/index.js",
+    "test": "npm run rebuild && mocha",
+    "test:only": "mocha"
+  },
+  "dependencies": {
+    "@loopback/authentication": "11.0.14",
+    "@loopback/boot": "7.0.14",
+    "@loopback/core": "6.1.11",
+    "@loopback/cron": "0.12.14",
+    "@loopback/repository": "7.0.14",
+    "@loopback/rest": "14.0.14",
+    "@loopback/rest-explorer": "7.0.14",
+    "@loopback/security": "^0.11.9",
+    "bcryptjs": "2.4.3",
+    "bullmq": "5.71.0",
+    "dotenv": "^16.4.5",
+    "ioredis": "5.9.3",
+    "jsonwebtoken": "9.0.3",
+    "loopback-connector-mongodb": "6.3.1",
+    "opossum": "8.5.0",
+    "source-map-support": "0.5.21",
+    "tslib": "^2.6.2",
+    "zod": "4.3.6"
+  },
+  "devDependencies": {
+    "@loopback/testlab": "7.0.13",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "9.0.10",
+    "@types/mocha": "10.0.10",
+    "@types/node": "18.19.0",
+    "@types/opossum": "8.1.9",
+    "mocha": "10.8.2",
+    "rimraf": "^5.0.10",
+    "typescript": "5.2.2"
+  }
+}
