@@ -55,6 +55,9 @@ export class CandidateProfile extends OwnedEntity {
   @property({ type: 'string' })
   hiringQueryTemplate?: string;
 
+  @property({ type: 'date' })
+  lastReviewReminderAt?: Date;
+
   constructor(data?: Partial<CandidateProfile>) {
     super(data);
   }

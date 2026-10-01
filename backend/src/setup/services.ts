@@ -29,6 +29,11 @@ import { ResumeTailorService } from '../services/tailoring/resume-tailor.service
 import { ContactService } from '../services/outreach/contact.service';
 import { HiringPostService } from '../services/outreach/hiring-post.service';
 import { PostConnectorRegistryService } from '../services/outreach/post-connector-registry.service';
+import { MailConnectorService } from '../services/mail/mail-connector.service';
+import { MailTransportRegistryService } from '../services/mail/mail-transport-registry.service';
+import { OutreachTemplateService } from '../services/outreach/outreach-template.service';
+import { OutreachService } from '../services/outreach/outreach.service';
+import { ReviewReminderService } from '../services/outreach/review-reminder.service';
 
 /**
  * Single registration point for services. Each class is bound as
@@ -74,6 +79,12 @@ export const SERVICE_CLASSES: Constructor<unknown>[] = [
   PostConnectorRegistryService,
   ContactService,
   HiringPostService,
+  // Mail and outreach
+  MailTransportRegistryService,
+  MailConnectorService,
+  OutreachTemplateService,
+  OutreachService,
+  ReviewReminderService,
 ];
 
 export function registerServices(app: Application, classes: Constructor<unknown>[] = SERVICE_CLASSES): void {
