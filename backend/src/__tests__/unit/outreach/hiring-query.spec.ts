@@ -6,6 +6,10 @@ import {
   canonicalPostUrl,
   DEFAULT_HIRING_QUERY_TEMPLATE,
   extractEmails,
+  googleTimeRange,
+  isPostedWithin,
+  POSTED_WITHIN,
+  postedSince,
   toGoogleQuery,
   validateHiringTemplate,
 } from '../../../domain/hiring-query';
@@ -87,5 +91,33 @@ describe('SerpApiPostsConnector', () => {
     expect(posts).to.have.length(1);
     expect(posts[0]).to.containDeep({ author: 'Jane Doe', url: 'https://www.linkedin.com/posts/jane_hiring-1' });
     expect(posts[0].text).to.match(/cv@acme\.io/);
+    expect(new URL(urls[0]).searchParams.get('tbs')).to.equal('qdr:w');
+
+    await connector.search('"hiring" AND "SRE"', 10, '24h');
+    expect(new URL(urls[1]).searchParams.get('tbs')).to.equal('qdr:d');
+    await connector.search('"hiring" AND "SRE"', 10, '3months');
+    expect(new URL(urls[2]).searchParams.get('tbs')).to.equal('qdr:m3');
+    await connector.search('"hiring" AND "SRE"', 10, 'any');
+    expect(new URL(urls[3]).searchParams.has('tbs')).to.be.false();
+  });
+});
+
+describe('Posted-within windows', () => {
+  it('accepts only known windows', () => {
+    expect(POSTED_WITHIN.every(isPostedWithin)).to.be.true();
+    expect(isPostedWithin('decade')).to.be.false();
+    expect(isPostedWithin(undefined)).to.be.false();
+  });
+
+  it('turns a window into the oldest allowed date', () => {
+    const now = Date.UTC(2026, 9, 3, 12);
+    expect(postedSince('1h', now)?.toISOString()).to.equal('2026-10-03T11:00:00.000Z');
+    expect(postedSince('24h', now)?.toISOString()).to.equal('2026-10-02T12:00:00.000Z');
+    expect(postedSince('week', now)?.toISOString()).to.equal('2026-09-26T12:00:00.000Z');
+    expect(postedSince('any', now)).to.be.undefined();
+  });
+
+  it('maps every window to a Google time range', () => {
+    expect(POSTED_WITHIN.map(googleTimeRange)).to.eql(['qdr:h', 'qdr:d', 'qdr:w', 'qdr:m', 'qdr:m3', 'qdr:m6', 'qdr:y', undefined]);
   });
 });

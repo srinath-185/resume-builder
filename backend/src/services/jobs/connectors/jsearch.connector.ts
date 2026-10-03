@@ -47,18 +47,23 @@ export class JSearchConnector implements JobSourceConnector {
 
   async search(query: JobSearchQuery): Promise<NormalisedJob[]> {
     const text = [query.title, query.location ? `in ${query.location}` : ''].filter(Boolean).join(' ');
-    const response = await this.http.request<{ data?: JSearchJob[] }>({
-      url: `https://${HOST}/search`,
+    // /search was retired; /search-v2 nests the list under data.jobs.
+    const response = await this.http.request<{ data?: JSearchJob[] | { jobs?: JSearchJob[] } }>({
+      url: `https://${HOST}/search-v2`,
       headers: { 'X-RapidAPI-Key': envString('JSEARCH_API_KEY')!, 'X-RapidAPI-Host': HOST },
       query: {
         query: text,
         page: 1,
         num_pages: 1,
         date_posted: envString('JSEARCH_DATE_POSTED', 'week'),
+        // Without a country JSearch searches the US, even for "… in Chennai".
+        country: envString('JSEARCH_COUNTRY'),
         ...(query.remoteOnly ? { work_from_home: 'true' } : {}),
       },
     });
-    return (response.data?.data ?? []).slice(0, query.limit).flatMap(job => this.map(job));
+    const data = response.data?.data;
+    const jobs = Array.isArray(data) ? data : (data?.jobs ?? []);
+    return jobs.slice(0, query.limit).flatMap(job => this.map(job));
   }
 
   private map(job: JSearchJob): NormalisedJob[] {

@@ -5,7 +5,7 @@ import { AppBusinessError, AppNotFoundError, AppRateLimitError, ERROR_CODES } fr
 import { PageRequest, PaginatedResult, toPaginated } from '../../common/utils/list-query.util';
 import { searchTitle } from '../../domain/job-normalise';
 import { escapeRegex } from '../../domain/keyword-match';
-import { buildHiringQuery, canonicalPostUrl, DEFAULT_HIRING_QUERY_TEMPLATE, extractEmails } from '../../domain/hiring-query';
+import { buildHiringQuery, canonicalPostUrl, DEFAULT_HIRING_QUERY_TEMPLATE, DEFAULT_POSTED_WITHIN, extractEmails, isPostedWithin, PostedWithin, postedSince } from '../../domain/hiring-query';
 import { ContactSource, HiringPost, HiringPostStatus, JobSourceSetting } from '../../models';
 import { QueueService } from '../../queue/queue.service';
 import { HiringPostRepository, JobSourceSettingRepository } from '../../repositories';
@@ -20,6 +20,13 @@ export const HIRING_POST_QUEUE = 'hiring-post-search';
 
 export interface HiringPostJob {
   userId: string;
+  postedWithin?: PostedWithin;
+}
+
+export interface HiringPostFilters {
+  status?: HiringPostStatus;
+  search?: string;
+  postedWithin?: PostedWithin;
 }
 
 export interface PostSourceView extends PostConnectorInfo {
@@ -32,6 +39,7 @@ export interface PostSourceView extends PostConnectorInfo {
 
 export interface HiringSearchSummary {
   queries: string[];
+  postedWithin: PostedWithin;
   found: number;
   created: number;
   contactsCreated: number;
@@ -96,7 +104,7 @@ export class HiringPostService {
     return (await this.sources(userId)).find(view => view.key === key)!;
   }
 
-  async requestSearch(userId: string): Promise<{ jobId: string; queries: string[] }> {
+  async requestSearch(userId: string, postedWithin: PostedWithin = DEFAULT_POSTED_WITHIN): Promise<{ jobId: string; queries: string[]; postedWithin: PostedWithin }> {
     const queries = await this.queries(userId);
     if (queries.length === 0) throw new AppBusinessError(ERROR_CODES.PROFILE_INCOMPLETE, 'Add at least one target job title to your profile first');
     const sources = await this.sources(userId);
@@ -108,14 +116,16 @@ export class HiringPostService {
     if (Date.now() - lastRun < minMinutes * 60_000) {
       throw new AppRateLimitError(ERROR_CODES.DISCOVERY_TOO_SOON, `Post searches can run at most every ${minMinutes} minutes`);
     }
-    const jobId = await this.queue.enqueue<HiringPostJob>(HIRING_POST_QUEUE, { userId }, { jobId: `posts-${userId}-${Math.floor(Date.now() / 60_000)}` });
-    return { jobId, queries };
+    const jobId = await this.queue.enqueue<HiringPostJob>(HIRING_POST_QUEUE, { userId, postedWithin }, { jobId: `posts-${userId}-${Math.floor(Date.now() / 60_000)}` });
+    return { jobId, queries, postedWithin };
   }
 
-  async search({ userId }: HiringPostJob): Promise<HiringSearchSummary> {
+  async search(job: HiringPostJob): Promise<HiringSearchSummary> {
+    const { userId } = job;
+    const postedWithin = isPostedWithin(job.postedWithin) ? job.postedWithin : DEFAULT_POSTED_WITHIN;
     const planned = await this.plannedQueries(userId);
     const queries = planned.map(entry => entry.query);
-    const summary: HiringSearchSummary = { queries, found: 0, created: 0, contactsCreated: 0, errors: [] };
+    const summary: HiringSearchSummary = { queries, postedWithin, found: 0, created: 0, contactsCreated: 0, errors: [] };
     const enabledKeys = new Set((await this.sources(userId)).filter(view => view.enabled && view.configured).map(view => view.key));
     const limit = envInt('HIRING_POSTS_PER_QUERY', 20);
 
@@ -124,7 +134,7 @@ export class HiringPostService {
       let error: string | undefined;
       for (const { title, query } of planned) {
         try {
-          const results = await connector.search(query, limit);
+          const results = await connector.search(query, limit, postedWithin);
           found += results.length;
           for (const raw of results) {
             const created = await this.store(userId, raw, query, title);
@@ -146,16 +156,21 @@ export class HiringPostService {
     return summary;
   }
 
-  async list(userId: string, filters: { status?: HiringPostStatus; search?: string }, page: PageRequest): Promise<PaginatedResult<HiringPost>> {
+  async list(userId: string, filters: HiringPostFilters, page: PageRequest): Promise<PaginatedResult<HiringPost>> {
     const clauses: Where<HiringPost>[] = [];
     if (filters.status && Object.values(HiringPostStatus).includes(filters.status)) clauses.push({ status: filters.status });
     if (filters.search?.trim()) {
       const pattern = new RegExp(escapeRegex(filters.search.trim().slice(0, 80)), 'i');
       clauses.push({ or: [{ text: { regexp: pattern } }, { author: { regexp: pattern } }, { title: { regexp: pattern } }] });
     }
+    const since = filters.postedWithin && postedSince(filters.postedWithin);
+    if (since) {
+      // Some sources give no post date; those count from when we stored them.
+      clauses.push({ or: [{ postedAt: { gte: since } }, { and: [{ postedAt: null }, { createdAt: { gte: since } }] }] } as Where<HiringPost>);
+    }
     const where = clauses.length ? ({ and: clauses } as Where<HiringPost>) : undefined;
     const [items, { count }] = await Promise.all([
-      this.posts.findOwned(userId, { where, order: ['createdAt DESC'], skip: page.skip, limit: page.limit }),
+      this.posts.findOwned(userId, { where, order: ['postedAt DESC', 'createdAt DESC'], skip: page.skip, limit: page.limit }),
       this.posts.countOwned(userId, where),
     ]);
     return toPaginated(items, count, page);

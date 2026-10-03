@@ -71,3 +71,43 @@ export function canonicalPostUrl(url: string): string {
     return url;
   }
 }
+
+/** How far back to look for posts. Values match the Apify posts actor's `postedLimit`. */
+export const POSTED_WITHIN = ['1h', '24h', 'week', 'month', '3months', '6months', 'year', 'any'] as const;
+export type PostedWithin = (typeof POSTED_WITHIN)[number];
+export const DEFAULT_POSTED_WITHIN: PostedWithin = 'week';
+
+const HOUR_MS = 3_600_000;
+const DAY_MS = 24 * HOUR_MS;
+const WINDOW_MS: Record<Exclude<PostedWithin, 'any'>, number> = {
+  '1h': HOUR_MS,
+  '24h': DAY_MS,
+  week: 7 * DAY_MS,
+  month: 30 * DAY_MS,
+  '3months': 91 * DAY_MS,
+  '6months': 182 * DAY_MS,
+  year: 365 * DAY_MS,
+};
+const GOOGLE_TIME_RANGE: Record<Exclude<PostedWithin, 'any'>, string> = {
+  '1h': 'qdr:h',
+  '24h': 'qdr:d',
+  week: 'qdr:w',
+  month: 'qdr:m',
+  '3months': 'qdr:m3',
+  '6months': 'qdr:m6',
+  year: 'qdr:y',
+};
+
+export function isPostedWithin(value: unknown): value is PostedWithin {
+  return typeof value === 'string' && (POSTED_WITHIN as readonly string[]).includes(value);
+}
+
+/** Oldest post date the window allows; undefined for 'any'. */
+export function postedSince(window: PostedWithin, now = Date.now()): Date | undefined {
+  return window === 'any' ? undefined : new Date(now - WINDOW_MS[window]);
+}
+
+/** Google `tbs` value for the window; undefined for 'any' (no time filter). */
+export function googleTimeRange(window: PostedWithin): string | undefined {
+  return window === 'any' ? undefined : GOOGLE_TIME_RANGE[window];
+}

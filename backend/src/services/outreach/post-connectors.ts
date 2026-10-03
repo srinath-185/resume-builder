@@ -1,6 +1,6 @@
 import { envInt, envString } from '../../common/config/env.util';
 import { ResilientHttpClient } from '../../common/http/resilient-http.client';
-import { authorFromTitle, toGoogleQuery } from '../../domain/hiring-query';
+import { authorFromTitle, DEFAULT_POSTED_WITHIN, googleTimeRange, PostedWithin, toGoogleQuery } from '../../domain/hiring-query';
 import { safeUrl, stripHtml, toDate } from '../../domain/job-normalise';
 import { renderActorInput } from '../jobs/connectors/apify.connector';
 
@@ -24,7 +24,7 @@ export interface HiringPostConnector {
   readonly info: PostConnectorInfo;
   isConfigured(): boolean;
   /** `booleanQuery` is the LinkedIn-style query built from the user's template. */
-  search(booleanQuery: string, limit: number): Promise<RawPost[]>;
+  search(booleanQuery: string, limit: number, postedWithin?: PostedWithin): Promise<RawPost[]>;
 }
 
 interface SerpResult {
@@ -54,14 +54,14 @@ export class SerpApiPostsConnector implements HiringPostConnector {
     return envString('SERPAPI_KEY') !== undefined;
   }
 
-  async search(booleanQuery: string, limit: number): Promise<RawPost[]> {
+  async search(booleanQuery: string, limit: number, postedWithin?: PostedWithin): Promise<RawPost[]> {
     const response = await this.http.request<{ organic_results?: SerpResult[] }>({
       url: 'https://serpapi.com/search.json',
       query: {
         engine: 'google',
         q: `site:linkedin.com/posts ${toGoogleQuery(booleanQuery)}`,
         num: Math.min(limit, 50),
-        tbs: envString('SERPAPI_TIME_RANGE', 'qdr:w'),
+        tbs: postedWithin ? googleTimeRange(postedWithin) : envString('SERPAPI_TIME_RANGE', 'qdr:w'),
         api_key: envString('SERPAPI_KEY'),
       },
     });
@@ -74,6 +74,9 @@ export class SerpApiPostsConnector implements HiringPostConnector {
 }
 
 type Item = Record<string, unknown>;
+
+/** Input for harvestapi/linkedin-post-search: one page (up to 100 posts), newest first. */
+const DEFAULT_APIFY_POSTS_INPUT = '{"searchQueries":["{{title}}"],"maxPosts":"{{limit}}","postedLimit":"{{postedLimit}}","sortBy":"date","scrapePages":1}';
 const text = (value: unknown) => (typeof value === 'string' ? value : undefined);
 
 /** Unofficial LinkedIn content-search actor on Apify; actor id and input are configuration. */
@@ -91,9 +94,10 @@ export class ApifyLinkedInPostsConnector implements HiringPostConnector {
     return envString('APIFY_TOKEN') !== undefined && envString('APIFY_LINKEDIN_POSTS_ACTOR') !== undefined;
   }
 
-  async search(booleanQuery: string, limit: number): Promise<RawPost[]> {
+  async search(booleanQuery: string, limit: number, postedWithin: PostedWithin = DEFAULT_POSTED_WITHIN): Promise<RawPost[]> {
     const actor = envString('APIFY_LINKEDIN_POSTS_ACTOR')!.replace('/', '~');
-    const template = envString('APIFY_LINKEDIN_POSTS_INPUT', '{"searchQueries":["{{title}}"],"maxPosts":"{{limit}}"}')!;
+    // {{postedLimit}} is ours, not renderActorInput's, so it is filled in first.
+    const template = envString('APIFY_LINKEDIN_POSTS_INPUT', DEFAULT_APIFY_POSTS_INPUT)!.replace(/\{\{postedLimit\}\}/g, postedWithin);
     const input = renderActorInput(template, { title: booleanQuery, location: '', remoteOnly: false, limit });
     const response = await this.http.request<Item[]>({
       url: `https://api.apify.com/v2/acts/${encodeURIComponent(actor)}/run-sync-get-dataset-items`,

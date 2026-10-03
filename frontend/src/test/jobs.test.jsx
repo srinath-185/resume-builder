@@ -76,6 +76,27 @@ describe('JobsPage', () => {
     await user.click(await screen.findByRole('button', { name: 'Search now' }));
     expect(await screen.findByText(/A search ran recently/)).toBeInTheDocument();
   });
+
+  it('clears the searching banner when the run finishes and reports a failed source', async () => {
+    let finished = false;
+    mockApi({
+      'GET /jobs': { items: [], total: 0, page: 1, limit: 20 },
+      'GET /job-sources': () => [
+        finished
+          ? { key: 'jsearch', label: 'JSearch', configured: true, enabled: true, lastRunAt: new Date().toISOString(), lastFound: 0, lastError: 'jsearch responded 404' }
+          : { key: 'jsearch', label: 'JSearch', configured: true, enabled: true },
+      ],
+      'POST /jobs/discover': () => {
+        finished = true;
+        return { jobId: 'd1' };
+      },
+    });
+    renderPage(<JobsPage />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Search now' }));
+    expect(await screen.findByText('JSearch failed: jsearch responded 404')).toBeInTheDocument();
+    expect(screen.queryByText(/Searching…/)).not.toBeInTheDocument();
+  });
 });
 
 describe('JobSourcesPage', () => {

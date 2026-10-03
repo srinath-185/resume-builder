@@ -10,15 +10,17 @@ import { drainQueues, setupApplication } from '../helpers/test-app';
 
 class FakePostConnector implements HiringPostConnector {
   readonly queries: string[] = [];
+  readonly windows: Array<string | undefined> = [];
   constructor(
     readonly info: PostConnectorInfo,
-    private posts: RawPost[],
+    readonly posts: RawPost[],
   ) {}
   isConfigured(): boolean {
     return true;
   }
-  async search(query: string): Promise<RawPost[]> {
+  async search(query: string, _limit: number, postedWithin?: string): Promise<RawPost[]> {
     this.queries.push(query);
+    this.windows.push(postedWithin);
     return this.posts;
   }
 }
@@ -117,6 +119,38 @@ describe('Hiring posts and contacts (acceptance)', () => {
     expect(first.items).to.have.length(1);
     expect(second.items).to.have.length(1);
     expect(second.items[0].id).to.not.equal(first.items[0].id);
+  });
+
+  it('filters stored posts by posted date, counting undated posts from when they were stored', async () => {
+    const hour = 3_600_000;
+    serp.posts.splice(0, serp.posts.length,
+      { source: 'serpapi-posts', url: 'https://www.linkedin.com/posts/fresh', author: 'Fresh', text: 'hiring', postedAt: new Date(Date.now() - 2 * hour) },
+      { source: 'serpapi-posts', url: 'https://www.linkedin.com/posts/days-old', author: 'Days', text: 'hiring', postedAt: new Date(Date.now() - 3 * 24 * hour) },
+      { source: 'serpapi-posts', url: 'https://www.linkedin.com/posts/old', author: 'Old', text: 'hiring', postedAt: new Date(Date.now() - 60 * 24 * hour) },
+      { source: 'serpapi-posts', url: 'https://www.linkedin.com/posts/undated', author: 'Undated', text: 'hiring' },
+    );
+    await (await app.get<HiringPostService>('services.HiringPostService')).search({ userId: user.id });
+    const authors = async (window: string) =>
+      ((await client.get(`/api/hiring-posts?postedWithin=${window}`).set(user.auth).expect(200)).body.data.items as Array<{ author: string }>).map(post => post.author).sort();
+    expect(await authors('24h')).to.eql(['Fresh', 'Undated']);
+    expect(await authors('week')).to.eql(['Days', 'Fresh', 'Undated']);
+    expect(await authors('any')).to.eql(['Days', 'Fresh', 'Old', 'Undated']);
+    expect(await authors('bogus')).to.eql(['Days', 'Fresh', 'Old', 'Undated']);
+  });
+
+  it('passes the chosen window to every source and defaults to a week', async () => {
+    const started = (await client.post('/api/hiring-posts/search').set(user.auth).send({ postedWithin: '24h' }).expect(200)).body.data;
+    expect(started.postedWithin).to.equal('24h');
+    await drainQueues(app);
+    expect(serp.windows).to.eql(['24h', '24h']);
+
+    const service = await app.get<HiringPostService>('services.HiringPostService');
+    expect((await service.search({ userId: user.id })).postedWithin).to.equal('week');
+    expect(serp.windows.slice(-2)).to.eql(['week', 'week']);
+  });
+
+  it('rejects an unknown search window', async () => {
+    await client.post('/api/hiring-posts/search').set(user.auth).send({ postedWithin: 'decade' }).expect(422);
   });
 
   it('runs a manual search through the queue and rate-limits repeats', async () => {

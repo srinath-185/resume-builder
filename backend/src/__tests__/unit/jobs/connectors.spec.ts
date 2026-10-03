@@ -20,15 +20,16 @@ const query = { title: 'Backend Engineer', location: 'Chennai', remoteOnly: fals
 
 describe('Job source connectors', () => {
   afterEach(() => {
-    for (const key of ['JSEARCH_API_KEY', 'ADZUNA_APP_ID', 'ADZUNA_APP_KEY', 'APIFY_TOKEN', 'APIFY_LINKEDIN_ACTOR', 'APIFY_LINKEDIN_INPUT']) delete process.env[key];
+    for (const key of ['JSEARCH_API_KEY', 'JSEARCH_COUNTRY', 'ADZUNA_APP_ID', 'ADZUNA_APP_KEY', 'APIFY_TOKEN', 'APIFY_LINKEDIN_ACTOR', 'APIFY_LINKEDIN_INPUT']) delete process.env[key];
   });
 
   it('JSearch: queries "<title> in <location>" and maps apply options', async () => {
     process.env.JSEARCH_API_KEY = 'rapid';
+    process.env.JSEARCH_COUNTRY = 'in';
     const captured: Array<{ url: string; init?: RequestInit }> = [];
     const connector = new JSearchConnector(
       http('jsearch', {
-        data: [
+        data: { jobs: [
           {
             job_id: 'j1',
             job_title: 'Backend Engineer',
@@ -44,12 +45,14 @@ describe('Job source connectors', () => {
             ],
           },
           { job_id: 'j2', job_title: 'Missing employer' },
-        ],
+        ] },
       }, captured),
     );
     const jobs = await connector.search(query);
     const url = new URL(captured[0].url);
+    expect(url.pathname).to.equal('/search-v2');
     expect(url.searchParams.get('query')).to.equal('Backend Engineer in Chennai');
+    expect(url.searchParams.get('country')).to.equal('in');
     expect((captured[0].init?.headers as Record<string, string>)['X-RapidAPI-Key']).to.equal('rapid');
     expect(jobs).to.have.length(1);
     expect(jobs[0]).to.containDeep({ externalId: 'j1', company: 'Globex', location: 'Chennai, IN', description: 'Node & Mongo' });
@@ -109,9 +112,15 @@ describe('Apify LinkedIn posts connector', () => {
     expect(connector.isConfigured()).to.be.true();
     const posts = await connector.search('"hiring" AND "MERN Developer"', 5);
     expect(captured[0].url).to.match(/acts\/harvestapi~linkedin-post-search\/run-sync-get-dataset-items/);
-    expect(JSON.parse(String(captured[0].init?.body))).to.eql({ searchQueries: ['"hiring" AND "MERN Developer"'], maxPosts: 5 });
+    expect(JSON.parse(String(captured[0].init?.body))).to.eql({ searchQueries: ['"hiring" AND "MERN Developer"'], maxPosts: 5, postedLimit: 'week', sortBy: 'date', scrapePages: 1 });
     expect(posts).to.have.length(1);
     expect(posts[0]).to.containDeep({ url: 'https://www.linkedin.com/posts/jane_hiring-123', author: 'Jane Doe', authorUrl: 'https://www.linkedin.com/in/jane' });
     expect(posts[0].postedAt?.toISOString()).to.equal('2026-10-01T10:00:00.000Z');
+
+    await connector.search('"hiring"', 5, '24h');
+    expect(JSON.parse(String(captured[1].init?.body)).postedLimit).to.equal('24h');
+    process.env.APIFY_LINKEDIN_POSTS_INPUT = '{"searchQueries":["{{title}}"],"since":"{{postedLimit}}"}';
+    await connector.search('"hiring"', 5, 'month');
+    expect(JSON.parse(String(captured[2].init?.body))).to.eql({ searchQueries: ['"hiring"'], since: 'month' });
   });
 });

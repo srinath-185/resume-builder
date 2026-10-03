@@ -5,18 +5,48 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useHiringQueriesQuery, useListPostsQuery, usePostSourcesQuery, useSearchPostsMutation, useSetPostSourceMutation, useSetPostStatusMutation } from '@/app/api/outreach';
 import { Pager } from '@/common/components/Pager';
 import { StatusBadge } from '@/common/components/StatusBadge';
-import { Alert, Badge, Button, Card, ErrorMessage, Input, PageHeader, Spinner, Tabs } from '@/common/components/ui';
+import { Alert, Badge, Button, Card, ErrorMessage, Input, PageHeader, Select, Spinner, Tabs } from '@/common/components/ui';
 import { SourceList } from '@/modules/Jobs/JobSourcesPage';
 
 const PAGE_SIZE = 10;
 
+/** Same values as the API's postedWithin. */
+const POSTED_WITHIN = [
+  ['1h', 'Past hour'],
+  ['24h', 'Past 24 hours'],
+  ['week', 'Past week'],
+  ['month', 'Past month'],
+  ['3months', 'Past 3 months'],
+  ['6months', 'Past 6 months'],
+  ['year', 'Past year'],
+  ['any', 'Any time'],
+];
+
+const UNITS = [
+  ['year', 31_536_000],
+  ['month', 2_592_000],
+  ['week', 604_800],
+  ['day', 86_400],
+  ['hour', 3_600],
+  ['minute', 60],
+];
+
+/** "3 hours ago", "2 days ago" in the active language. */
+function timeAgo(value, language) {
+  const seconds = (new Date(value).getTime() - Date.now()) / 1000;
+  const format = new Intl.RelativeTimeFormat(language, { numeric: 'auto' });
+  const [unit, size] = UNITS.find(([, size]) => Math.abs(seconds) >= size) ?? ['minute', 60];
+  return format.format(Math.round(seconds / size), unit);
+}
+
 const latestRun = sources => Math.max(0, ...(sources ?? []).map(source => (source.lastRunAt ? new Date(source.lastRunAt).getTime() : 0)));
 
 export default function HiringPostsPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const [status, setStatus] = useState('NEW');
   const [query, setQuery] = useState('');
+  const [postedWithin, setPostedWithin] = useState('week');
   const [page, setPage] = useState(1);
   // Set while a queued search runs: the latest source run seen before it started. Lists refresh until a newer run shows up.
   const [pendingSince, setPendingSince] = useState(null);
@@ -24,7 +54,7 @@ export default function HiringPostsPage() {
   const pollingInterval = searching ? 3000 : 0;
   const { data: queries } = useHiringQueriesQuery();
   const { data: sources } = usePostSourcesQuery(undefined, { pollingInterval });
-  const { data, isLoading, error } = useListPostsQuery({ status: status || undefined, q: query.trim() || undefined, page, limit: PAGE_SIZE }, { pollingInterval });
+  const { data, isLoading, error } = useListPostsQuery({ status: status || undefined, q: query.trim() || undefined, postedWithin, page, limit: PAGE_SIZE }, { pollingInterval });
   const posts = data?.items;
   const canSearch = Boolean(sources?.some(source => source.configured && source.enabled));
   const [search, searchState] = useSearchPostsMutation();
@@ -43,7 +73,7 @@ export default function HiringPostsPage() {
 
   const startSearch = async () => {
     const before = latestRun(sources);
-    const result = await search();
+    const result = await search({ postedWithin });
     if (!result.error) setPendingSince(before);
   };
 
@@ -103,16 +133,32 @@ export default function HiringPostsPage() {
             setPage(1);
           }}
         />
-        <Input
-          className="max-w-sm"
-          placeholder={t('posts.filterPlaceholder', 'Search post text, author or title')}
-          aria-label={t('posts.filterLabel', 'Search posts')}
-          value={query}
-          onChange={event => {
-            setQuery(event.target.value);
-            setPage(1);
-          }}
-        />
+        <div className="grid gap-2 sm:grid-cols-[minmax(0,24rem)_auto]">
+          <Input
+            placeholder={t('posts.filterPlaceholder', 'Search post text, author or title')}
+            aria-label={t('posts.filterLabel', 'Search posts')}
+            value={query}
+            onChange={event => {
+              setQuery(event.target.value);
+              setPage(1);
+            }}
+          />
+          <Select
+            aria-label={t('posts.postedWithin', 'Posted within')}
+            title={t('posts.postedWithinHint', 'Filters the list and sets how far back the next search looks')}
+            value={postedWithin}
+            onChange={event => {
+              setPostedWithin(event.target.value);
+              setPage(1);
+            }}
+          >
+            {POSTED_WITHIN.map(([value, label]) => (
+              <option key={value} value={value}>
+                {t(`posts.within.${value}`, label)}
+              </option>
+            ))}
+          </Select>
+        </div>
         {isLoading ? (
           <Spinner />
         ) : !posts?.length ? (
@@ -125,6 +171,12 @@ export default function HiringPostsPage() {
                   <div className="text-sm">
                     <span className="font-medium">{post.author ?? t('posts.unknownAuthor', 'Unknown author')}</span>
                     {post.title && <span className="text-slate-500"> · {post.title}</span>}
+                    {post.postedAt && (
+                      <time className="text-slate-500" dateTime={post.postedAt} title={new Date(post.postedAt).toLocaleString(i18n.language)}>
+                        {' · '}
+                        {timeAgo(post.postedAt, i18n.language)}
+                      </time>
+                    )}
                   </div>
                   <StatusBadge status={post.status} />
                 </div>

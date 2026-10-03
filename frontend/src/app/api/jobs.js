@@ -15,7 +15,7 @@ export const jobsApi = api.injectEndpoints({
       query: id => ({ url: `/jobs/${id}/rescore`, method: 'POST' }),
       invalidatesTags: (_r, _e, id) => [{ type: 'Job', id }, { type: 'Job', id: 'LIST' }],
     }),
-    discoverJobs: build.mutation({ query: () => ({ url: '/jobs/discover', method: 'POST' }), invalidatesTags: ['JobSource'] }),
+    discoverJobs: build.mutation({ query: () => ({ url: '/jobs/discover', method: 'POST' }), invalidatesTags: ['JobSource', { type: 'Job', id: 'LIST' }] }),
     listJobSources: build.query({ query: () => '/job-sources', providesTags: ['JobSource'] }),
     setJobSource: build.mutation({
       query: ({ key, enabled }) => ({ url: `/job-sources/${key}`, method: 'PUT', body: { enabled } }),

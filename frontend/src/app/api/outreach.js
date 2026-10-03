@@ -6,7 +6,7 @@ export const outreachApi = api.injectEndpoints({
     hiringQueries: build.query({ query: () => '/hiring-posts/queries', providesTags: ['Profile'] }),
     postSources: build.query({ query: () => '/hiring-posts/sources', providesTags: ['PostSource'] }),
     setPostSource: build.mutation({ query: ({ key, enabled }) => ({ url: `/hiring-posts/sources/${key}`, method: 'PUT', body: { enabled } }), invalidatesTags: ['PostSource'] }),
-    searchPosts: build.mutation({ query: () => ({ url: '/hiring-posts/search', method: 'POST' }), invalidatesTags: ['PostSource', 'HiringPost'] }),
+    searchPosts: build.mutation({ query: body => ({ url: '/hiring-posts/search', method: 'POST', body }), invalidatesTags: ['PostSource', 'HiringPost'] }),
     listPosts: build.query({ query: params => `/hiring-posts${queryString(params)}`, providesTags: ['HiringPost'] }),
     setPostStatus: build.mutation({ query: ({ id, status }) => ({ url: `/hiring-posts/${id}`, method: 'PATCH', body: { status } }), invalidatesTags: ['HiringPost'] }),
 

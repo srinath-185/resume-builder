@@ -4,9 +4,19 @@ import { del, get, param, patch, post, put, requestBody, SchemaObject } from '@l
 import { SecurityBindings, UserProfile } from '@loopback/security';
 import { currentUserId } from '../../authentication/jwt.strategy';
 import { PaginatedResult, parsePage } from '../../common/utils/list-query.util';
+import { isPostedWithin, POSTED_WITHIN, PostedWithin } from '../../domain/hiring-query';
 import { HiringPost, HiringPostStatus, RecruiterContact } from '../../models';
 import { ContactInput, ContactService, ContactUpdate } from '../../services/outreach/contact.service';
 import { HiringPostService, PostSourceView } from '../../services/outreach/hiring-post.service';
+
+const SEARCH_BODY = {
+  required: false,
+  content: {
+    'application/json': {
+      schema: { type: 'object', additionalProperties: false, properties: { postedWithin: { type: 'string', enum: [...POSTED_WITHIN] } } } as SchemaObject,
+    },
+  },
+};
 
 const ENABLED_BODY = {
   content: {
@@ -44,8 +54,11 @@ export class HiringPostController {
   }
 
   @post('/hiring-posts/search')
-  search(@inject(SecurityBindings.USER) profile: UserProfile): Promise<{ jobId: string; queries: string[] }> {
-    return this.posts.requestSearch(currentUserId(profile));
+  search(
+    @inject(SecurityBindings.USER) profile: UserProfile,
+    @requestBody(SEARCH_BODY) body?: { postedWithin?: PostedWithin },
+  ): Promise<{ jobId: string; queries: string[]; postedWithin: PostedWithin }> {
+    return this.posts.requestSearch(currentUserId(profile), body?.postedWithin);
   }
 
   @get('/hiring-posts')
@@ -53,10 +66,12 @@ export class HiringPostController {
     @inject(SecurityBindings.USER) profile: UserProfile,
     @param.query.string('status') status?: HiringPostStatus,
     @param.query.string('q') search?: string,
+    @param.query.string('postedWithin') postedWithin?: string,
     @param.query.number('page') page?: number,
     @param.query.number('limit') limit?: number,
   ): Promise<PaginatedResult<HiringPost>> {
-    return this.posts.list(currentUserId(profile), { status, search }, parsePage(page, limit));
+    const window = isPostedWithin(postedWithin) ? postedWithin : undefined;
+    return this.posts.list(currentUserId(profile), { status, search, postedWithin: window }, parsePage(page, limit));
   }
 
   @patch('/hiring-posts/{id}')

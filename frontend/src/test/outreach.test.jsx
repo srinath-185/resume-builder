@@ -102,7 +102,29 @@ describe('HiringPostsPage', () => {
     expect(await screen.findByText('Post 2')).toBeInTheDocument();
 
     await user.type(screen.getByRole('textbox', { name: 'Search posts' }), 'react');
-    await waitFor(() => expect(calls.filter(call => call.key === 'GET /hiring-posts').at(-1).search).toBe('?status=NEW&q=react&page=1&limit=10'));
+    await waitFor(() => expect(calls.filter(call => call.key === 'GET /hiring-posts').at(-1).search).toBe('?status=NEW&q=react&postedWithin=week&page=1&limit=10'));
+  });
+
+  it('filters by posted date and searches with the same window', async () => {
+    const { calls } = mockApi({
+      'GET /hiring-posts/queries': { queries: ['"hiring" AND "SRE"'] },
+      'GET /hiring-posts/sources': [{ key: 'serpapi-posts', label: 'Google', description: 'd', official: true, configured: true, enabled: true }],
+      'GET /hiring-posts': {
+        items: [{ id: 'p1', author: 'Jane Doe', text: 'Hiring SREs', extractedEmails: [], postUrl: 'https://linkedin.test/posts/1', status: 'NEW', postedAt: new Date(Date.now() - 3 * 3_600_000).toISOString() }],
+        total: 1,
+        page: 1,
+        limit: 10,
+      },
+      'POST /hiring-posts/search': ({ body }) => ({ jobId: 'j1', queries: [], postedWithin: body.postedWithin }),
+    });
+    renderPage(<HiringPostsPage />, { route: '/hiring-posts', path: '/hiring-posts' });
+    const user = userEvent.setup();
+    expect(await screen.findByText(/3 hours ago/)).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Posted within' }), '24h');
+    await waitFor(() => expect(calls.filter(call => call.key === 'GET /hiring-posts').at(-1).search).toContain('postedWithin=24h'));
+    await user.click(screen.getByRole('button', { name: 'Search posts' }));
+    await waitFor(() => expect(calls.find(call => call.key === 'POST /hiring-posts/search')?.body).toEqual({ postedWithin: '24h' }));
   });
 
   it('disables searching and explains why when no post source can run', async () => {
