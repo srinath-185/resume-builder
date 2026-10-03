@@ -13,6 +13,7 @@ import {
   toGoogleQuery,
   validateHiringTemplate,
 } from '../../../domain/hiring-query';
+import { companyFromEmail } from '../../../domain/template-render';
 import { SerpApiPostsConnector } from '../../../services/outreach/post-connectors';
 
 describe('Hiring post query builder', () => {
@@ -119,5 +120,15 @@ describe('Posted-within windows', () => {
 
   it('maps every window to a Google time range', () => {
     expect(POSTED_WITHIN.map(googleTimeRange)).to.eql(['qdr:h', 'qdr:d', 'qdr:w', 'qdr:m', 'qdr:m3', 'qdr:m6', 'qdr:y', undefined]);
+  });
+});
+
+describe('companyFromEmail', () => {
+  it('names the employer from a company domain and ignores free-mail domains', () => {
+    expect(companyFromEmail('recruiter2@infolexus.com')).to.equal('Infolexus');
+    expect(companyFromEmail('jobs@acme-labs.io')).to.equal('Acme Labs');
+    expect(companyFromEmail('hr@tcs.co.in')).to.equal('Tcs');
+    expect(companyFromEmail('someone@gmail.com')).to.be.undefined();
+    expect(companyFromEmail('not-an-email')).to.be.undefined();
   });
 });

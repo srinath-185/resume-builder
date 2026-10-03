@@ -45,3 +45,23 @@ Following up on my note about the {{jobTitle}} role at {{company}}. I'm still ve
 
 Thanks,
 {{senderName}}`;
+
+const FREE_MAIL_DOMAINS = new Set([
+  'gmail.com', 'googlemail.com', 'yahoo.com', 'yahoo.co.in', 'yahoo.in', 'outlook.com', 'hotmail.com', 'live.com', 'msn.com',
+  'icloud.com', 'me.com', 'aol.com', 'proton.me', 'protonmail.com', 'rediffmail.com', 'gmx.com', 'mail.com', 'zoho.com', 'yandex.com',
+]);
+
+/** "jobs@acme-labs.io" → "Acme Labs"; undefined for free-mail addresses, which say nothing about the employer. */
+export function companyFromEmail(email: string): string | undefined {
+  const domain = email.split('@')[1]?.toLowerCase().trim();
+  if (!domain || FREE_MAIL_DOMAINS.has(domain)) return undefined;
+  const parts = domain.split('.');
+  // Skip second-level suffixes such as co.in / com.au.
+  const name = parts.length > 2 && parts.at(-2)!.length <= 3 ? parts.at(-3) : parts.at(-2);
+  if (!name) return undefined;
+  return name
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map(word => word[0].toUpperCase() + word.slice(1))
+    .join(' ');
+}

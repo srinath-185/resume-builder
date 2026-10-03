@@ -101,8 +101,9 @@ export class OutreachMessage extends OwnedEntity {
   @property({ type: 'string', required: true })
   toEmail: string;
 
-  @property({ type: 'string', required: true, mongodb: { dataType: 'ObjectId' } })
-  applicationId: string;
+  /** The job this email is about; absent for emails sent from a hiring post. */
+  @property({ type: 'string', mongodb: { dataType: 'ObjectId' } })
+  applicationId?: string;
 
   @property({ type: 'string' })
   hiringPostId?: string;

@@ -1,7 +1,8 @@
 import { Client, expect } from '@loopback/testlab';
 import { ResumeBuilderApplication } from '../../application';
 import { OPT_OUT_LINE } from '../../domain/template-render';
-import { MailConnectorRepository } from '../../repositories';
+import { HiringPostStatus } from '../../models';
+import { HiringPostRepository, MailConnectorRepository } from '../../repositories';
 import { OutreachService } from '../../services/outreach/outreach.service';
 import { ReviewReminderService } from '../../services/outreach/review-reminder.service';
 import { givenUser, TestUser } from '../helpers/auth.helper';
@@ -173,6 +174,49 @@ describe('Mail connectors and outreach (acceptance)', () => {
     gmail.failAuth = true;
     await client.post('/api/mail-connector/test').set(user.auth).expect(400);
     expect((await client.get('/api/mail-connector').set(user.auth)).body.data).to.containDeep({ connected: false, status: 'ERROR' });
+  });
+
+  it('emails a recruiter straight from a hiring post through Gmail with the primary resume attached', async () => {
+    const { url } = (await client.post('/api/mail-connector/gmail/start').set(user.auth).expect(200)).body.data;
+    const state = new URL(url).searchParams.get('state')!;
+    const callback = await client.get(`/api/mail-connector/gmail/callback?code=post&state=${encodeURIComponent(state)}`).expect(302);
+    await client.post('/api/mail-connector/gmail/confirm').set(user.auth).send({ pending: new URL(callback.headers.location).searchParams.get('pending') }).expect(200);
+
+    const posts = await app.getRepository(HiringPostRepository);
+    const post = await posts.create({
+      userId: user.id,
+      source: 'apify-linkedin-posts',
+      postUrl: 'https://www.linkedin.com/posts/janakiram_hiring-1',
+      author: 'Janakiram R',
+      text: "We're hiring a MERN Stack Developer. Mail recruiter2@infolexus.com",
+      extractedEmails: ['recruiter2@infolexus.com'],
+      title: 'MERN Stack Developer',
+      queryUsed: '"hiring" AND "MERN Stack Developer"',
+      status: HiringPostStatus.NEW,
+    });
+
+    const missing = await client.post('/api/outreach').set(user.auth).send({ email: 'recruiter2@infolexus.com' }).expect(400);
+    expect(missing.body.error.code).to.equal('VALIDATION_ERROR');
+
+    const draft = (await client.post('/api/outreach').set(user.auth).send({ hiringPostId: post.id!, email: 'recruiter2@infolexus.com', name: 'Janakiram R' }).expect(200)).body.data;
+    expect(draft).to.containDeep({ status: 'DRAFT', subject: 'Application: MERN Stack Developer at Infolexus', hiringPostId: post.id });
+    expect(draft.applicationId).to.be.undefined();
+    expect(draft.attachmentName).to.match(/\.pdf$/);
+    expect(draft.body).to.startWith('Hi Janakiram R,');
+
+    await client.post(`/api/outreach/${draft.id}/send`).set(user.auth).expect(200);
+    await drainQueues(app);
+    expect((await client.get(`/api/outreach/${draft.id}`).set(user.auth)).body.data.status).to.equal('SENT');
+    const [{ mail }] = gmail.sent;
+    expect(mail.to).to.equal('recruiter2@infolexus.com');
+    expect(mail.attachments).to.have.length(1);
+    expect(mail.attachments![0].filename).to.equal(draft.attachmentName);
+    expect(mail.attachments![0].content.subarray(0, 5).toString()).to.equal('%PDF-');
+    expect((await posts.findById(post.id!)).status).to.equal(HiringPostStatus.CONTACTED);
+
+    const again = (await client.post('/api/outreach').set(user.auth).send({ hiringPostId: post.id, email: 'recruiter2@infolexus.com' })).body.data;
+    const duplicate = await client.post(`/api/outreach/${again.id}/send`).set(user.auth).expect(400);
+    expect(duplicate.body.error.code).to.equal('OUTREACH_DUPLICATE');
   });
 
   it('refuses a Gmail grant claimed by anyone but the user who started the sign-in', async () => {

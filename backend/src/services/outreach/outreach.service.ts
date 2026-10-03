@@ -2,7 +2,7 @@ import { BindingScope, inject, injectable } from '@loopback/core';
 import { envInt } from '../../common/config/env.util';
 import { AppBusinessError, AppError, ERROR_CODES } from '../../common/errors';
 import { numbersIn } from '../../domain/resume-fact-check';
-import { FOLLOW_UP_BODY, OPT_OUT_LINE, renderTemplate, TemplateValues } from '../../domain/template-render';
+import { companyFromEmail, FOLLOW_UP_BODY, OPT_OUT_LINE, renderTemplate, TemplateValues } from '../../domain/template-render';
 import { ContactSource, HiringPostStatus, OutreachMessage, OutreachStatus } from '../../models';
 import { QueueService } from '../../queue/queue.service';
 import { HiringPostRepository, OutreachMessageRepository, RecruiterContactRepository, UserRepository } from '../../repositories';
@@ -11,7 +11,9 @@ import { LoggerService } from '../common/logger.service';
 import { LlmRouterService } from '../llm/llm-router.service';
 import { LlmTask } from '../llm/llm.types';
 import { MailConnectorService } from '../mail/mail-connector.service';
+import { ResumeRenderService } from '../render/resume-render.service';
 import { CandidateProfileService } from '../resume/candidate-profile.service';
+import { ResumeService } from '../resume/resume.service';
 import { ApplicationService } from '../tailoring/application.service';
 import { ContactService } from './contact.service';
 import { OutreachTemplateService } from './outreach-template.service';
@@ -24,14 +26,20 @@ export interface OutreachSendJob {
   messageId: string;
 }
 
+/** An email is about a job application (approved tailored resume attached) or a hiring post (primary resume attached). */
 export interface DraftInput {
-  applicationId: string;
+  applicationId?: string;
   contactId?: string;
   email?: string;
   name?: string;
   hiringPostId?: string;
   templateId?: string;
   personalise?: boolean;
+}
+
+interface Attachment {
+  fileName: string;
+  pdf: () => Promise<Buffer>;
 }
 
 function startOfUtcDay(now = new Date()): Date {
@@ -57,6 +65,8 @@ export class OutreachService {
     @inject('services.OutreachTemplateService') private templates: OutreachTemplateService,
     @inject('services.ApplicationService') private applications: ApplicationService,
     @inject('services.CandidateProfileService') private profiles: CandidateProfileService,
+    @inject('services.ResumeService') private resumes: ResumeService,
+    @inject('services.ResumeRenderService') private renderer: ResumeRenderService,
     @inject('services.MailConnectorService') private mail: MailConnectorService,
     @inject('services.LlmRouterService') private llm: LlmRouterService,
     @inject('services.QueueService') private queue: QueueService,
@@ -74,13 +84,23 @@ export class OutreachService {
   }
 
   async draft(userId: string, input: DraftInput): Promise<OutreachMessage> {
-    const materials = await this.applications.approvedMaterials(userId, input.applicationId);
+    if (!input.applicationId && !input.hiringPostId) {
+      throw new AppBusinessError(ERROR_CODES.VALIDATION_ERROR, 'Choose the job or hiring post this email is about');
+    }
+    const materials = input.applicationId ? await this.applications.approvedMaterials(userId, input.applicationId) : undefined;
+    const attachment = materials ? undefined : await this.primaryResumeAttachment(userId);
     const contact = await this.resolveContact(userId, input);
     if (contact.doNotContact) throw new AppBusinessError(ERROR_CODES.CONTACT_DO_NOT_CONTACT, 'This person asked not to be contacted');
     const post = input.hiringPostId ? await this.posts.findOwnedById(userId, input.hiringPostId, {}, ERROR_CODES.HIRING_POST_NOT_FOUND) : undefined;
     const template = input.templateId ? await this.templates.get(userId, input.templateId) : await this.templates.defaultFor(userId);
 
-    const values = await this.values(userId, { recruiterName: contact.name, company: contact.company ?? materials.listing.company, jobTitle: materials.listing.title, coverNote: materials.coverNote, postUrl: post?.postUrl });
+    const values = await this.values(userId, {
+      recruiterName: contact.name,
+      company: contact.company ?? materials?.listing.company ?? companyFromEmail(contact.email),
+      jobTitle: materials?.listing.title ?? post?.title,
+      coverNote: materials?.coverNote,
+      postUrl: post?.postUrl,
+    });
     let subject = renderTemplate(template.subject, values);
     let body = `${renderTemplate(template.body, values)}\n\n${OPT_OUT_LINE}`;
     if (input.personalise) ({ subject, body } = await this.personalise(userId, { subject, body }, post?.text));
@@ -94,12 +114,12 @@ export class OutreachService {
       templateId: template.id,
       subject,
       body,
-      attachmentName: materials.fileName,
+      attachmentName: materials?.fileName ?? attachment?.fileName,
       status: OutreachStatus.DRAFT,
       sequence: 1,
       followUpCreated: false,
     });
-    await this.audit.record({ userId, action: 'OUTREACH_DRAFTED', entity: 'OutreachMessage', entityId: message.id, meta: { to: contact.email, applicationId: input.applicationId } });
+    await this.audit.record({ userId, action: 'OUTREACH_DRAFTED', entity: 'OutreachMessage', entityId: message.id, meta: { to: contact.email, applicationId: input.applicationId, hiringPostId: post?.id } });
     return message;
   }
 
@@ -138,13 +158,13 @@ export class OutreachService {
     if (message.status !== OutreachStatus.QUEUED) return;
     try {
       await this.preflight(userId, message);
-      const materials = await this.applications.approvedMaterials(userId, message.applicationId);
+      const attachment = message.sequence === 1 ? await this.attachmentFor(userId, message) : undefined;
       const parent = message.followUpOf ? await this.messages.findById(message.followUpOf).catch(() => undefined) : undefined;
       const sent = await this.mail.send(userId, {
         to: message.toEmail,
         subject: message.subject,
         text: message.body,
-        attachments: message.sequence === 1 ? [{ filename: materials.fileName, content: materials.pdf, contentType: 'application/pdf' }] : [],
+        attachments: attachment ? [{ filename: attachment.fileName, content: await attachment.pdf(), contentType: 'application/pdf' }] : [],
         inReplyTo: parent?.messageId,
         threadId: parent?.threadId,
       });
@@ -175,9 +195,9 @@ export class OutreachService {
       await this.messages.updateById(original.id!, { followUpCreated: true });
       const contact = await this.contactRepo.findById(original.contactId).catch(() => undefined);
       if (!contact || contact.doNotContact) continue;
-      const materials = await this.applications.approvedMaterials(original.userId, original.applicationId).catch(() => undefined);
-      if (!materials) continue;
-      const values = await this.values(original.userId, { recruiterName: contact.name, company: contact.company ?? materials.listing.company, jobTitle: materials.listing.title });
+      const about = await this.followUpSubject(original);
+      if (!about) continue;
+      const values = await this.values(original.userId, { recruiterName: contact.name, company: contact.company ?? about.company ?? companyFromEmail(contact.email), jobTitle: about.jobTitle });
       await this.messages.create({
         userId: original.userId,
         contactId: original.contactId,
@@ -203,11 +223,40 @@ export class OutreachService {
     const sentToday = (await this.messages.countOwned(userId, { status: OutreachStatus.SENT, sentAt: { gte: startOfUtcDay() } })).count;
     if (sentToday >= cap) throw new AppBusinessError(ERROR_CODES.OUTREACH_DAILY_CAP_REACHED, `Daily limit of ${cap} emails reached; it resets at 00:00 UTC`);
     if (message.sequence === 1) {
+      // One first email per person per job, or per person per hiring post.
+      const about = message.applicationId ? { applicationId: message.applicationId } : { hiringPostId: message.hiringPostId };
       const duplicate = await this.messages.findOne({
-        where: { userId, contactId: message.contactId, applicationId: message.applicationId, sequence: 1, status: { inq: [OutreachStatus.SENT, OutreachStatus.QUEUED] }, id: { neq: message.id } },
+        where: { userId, contactId: message.contactId, ...about, sequence: 1, status: { inq: [OutreachStatus.SENT, OutreachStatus.QUEUED] }, id: { neq: message.id } },
       });
-      if (duplicate) throw new AppBusinessError(ERROR_CODES.OUTREACH_DUPLICATE, 'You already emailed this person about this job');
+      if (duplicate) {
+        throw new AppBusinessError(ERROR_CODES.OUTREACH_DUPLICATE, `You already emailed this person about this ${message.applicationId ? 'job' : 'post'}`);
+      }
     }
+  }
+
+  /** The resume a first email carries: the approved tailored one for a job, else the primary resume. */
+  private async attachmentFor(userId: string, message: OutreachMessage): Promise<Attachment> {
+    if (message.applicationId) {
+      const materials = await this.applications.approvedMaterials(userId, message.applicationId);
+      return { fileName: materials.fileName, pdf: async () => materials.pdf };
+    }
+    return this.primaryResumeAttachment(userId);
+  }
+
+  private async primaryResumeAttachment(userId: string): Promise<Attachment> {
+    const resume = await this.resumes.primaryParsed(userId);
+    const base = (resume.fileName ?? 'resume').replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'resume';
+    return { fileName: `${base}.pdf`, pdf: () => this.renderer.render(resume.document!) };
+  }
+
+  /** What a follow-up refers to; undefined when the job's approval or the post is gone. */
+  private async followUpSubject(original: OutreachMessage): Promise<{ company?: string; jobTitle?: string } | undefined> {
+    if (original.applicationId) {
+      const materials = await this.applications.approvedMaterials(original.userId, original.applicationId).catch(() => undefined);
+      return materials && { company: materials.listing.company, jobTitle: materials.listing.title };
+    }
+    const post = original.hiringPostId ? await this.posts.findById(original.hiringPostId).catch(() => undefined) : undefined;
+    return post && { jobTitle: post.title };
   }
 
   private async resolveContact(userId: string, input: DraftInput) {

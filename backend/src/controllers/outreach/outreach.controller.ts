@@ -59,7 +59,6 @@ export class OutreachController {
         'application/json': {
           schema: {
             type: 'object',
-            required: ['applicationId'],
             additionalProperties: false,
             properties: {
               applicationId: { type: 'string', maxLength: 40 },

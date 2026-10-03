@@ -72,17 +72,50 @@ describe('OutreachPage', () => {
 });
 
 describe('HiringPostsPage', () => {
-  it('shows the queries, posts with emails, and links an email to compose', async () => {
-    mockApi({
+  it('drafts, edits and sends an email to an address in a post through Gmail', async () => {
+    let message = null;
+    const { calls } = mockApi({
       'GET /hiring-posts/queries': { queries: ['"hiring" AND "SRE" AND "Pune"'] },
       'GET /hiring-posts/sources': [{ key: 'serpapi-posts', label: 'Google', description: 'd', official: true, configured: true, enabled: true }],
       'GET /hiring-posts': { items: [{ id: 'p1', author: 'Jane Doe', title: 'SRE', text: 'We are hiring SREs', extractedEmails: ['jobs@acme.io'], postUrl: 'https://linkedin.test/posts/1', status: 'NEW' }], total: 1, page: 1, limit: 10 },
+      'GET /mail-connector': { connected: true, provider: 'GMAIL', senderEmail: 'me@gmail.com' },
+      'POST /outreach': ({ body }) => {
+        message = { id: 'm1', status: 'DRAFT', toEmail: body.email, subject: 'Application: SRE at Acme', body: 'Hi Jane Doe,', attachmentName: 'resume.pdf' };
+        return message;
+      },
+      'PUT /outreach/m1': ({ body }) => Object.assign(message, body),
+      'POST /outreach/m1/send': () => Object.assign(message, { status: 'QUEUED' }),
+      'GET /outreach/m1': () => Object.assign(message, { status: 'SENT' }),
     });
-    const { router } = renderPage(<HiringPostsPage />, { route: '/hiring-posts', path: '/hiring-posts', extraRoutes: [{ path: '/outreach/new', element: <p>compose</p> }] });
+    renderPage(<HiringPostsPage />, { route: '/hiring-posts', path: '/hiring-posts' });
     const user = userEvent.setup();
     expect(await screen.findByText('"hiring" AND "SRE" AND "Pune"')).toBeInTheDocument();
-    await user.click(await screen.findByRole('button', { name: 'jobs@acme.io' }));
-    await waitFor(() => expect(router.state.location.search).toBe('?email=jobs%40acme.io&name=Jane%20Doe&hiringPostId=p1'));
+    await user.click(await screen.findByRole('button', { name: 'Send mail to jobs@acme.io' }));
+
+    const subject = await screen.findByLabelText('Subject');
+    expect(subject).toHaveValue('Application: SRE at Acme');
+    expect(screen.getByText('resume.pdf')).toBeInTheDocument();
+    expect(calls.find(call => call.key === 'POST /outreach').body).toEqual({ hiringPostId: 'p1', email: 'jobs@acme.io', name: 'Jane Doe' });
+
+    await user.clear(subject);
+    await user.type(subject, 'SRE role — Priya');
+    await user.click(screen.getByRole('button', { name: 'Send via Gmail' }));
+    expect(await screen.findByText('Sent to jobs@acme.io from me@gmail.com.')).toBeInTheDocument();
+    expect(calls.find(call => call.key === 'PUT /outreach/m1').body).toEqual({ subject: 'SRE role — Priya', body: 'Hi Jane Doe,' });
+  });
+
+  it('asks to connect Gmail before drafting from a post', async () => {
+    const { calls } = mockApi({
+      'GET /hiring-posts/queries': { queries: [] },
+      'GET /hiring-posts/sources': [{ key: 'serpapi-posts', label: 'Google', description: 'd', official: true, configured: true, enabled: true }],
+      'GET /hiring-posts': { items: [{ id: 'p1', author: 'Jane Doe', text: 'Hiring', extractedEmails: ['jobs@acme.io'], postUrl: 'https://linkedin.test/posts/1', status: 'NEW' }], total: 1, page: 1, limit: 10 },
+      'GET /mail-connector': { connected: false },
+    });
+    renderPage(<HiringPostsPage />, { route: '/hiring-posts', path: '/hiring-posts' });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Send mail to jobs@acme.io' }));
+    expect(await screen.findByRole('link', { name: 'Connect now' })).toHaveAttribute('href', '/settings/mail');
+    expect(calls.some(call => call.key === 'POST /outreach')).toBe(false);
   });
 
   it('searches stored posts and pages through them', async () => {

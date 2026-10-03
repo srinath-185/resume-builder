@@ -1,12 +1,13 @@
-import { ExternalLink, Mail, Search } from 'lucide-react';
+import { ExternalLink, Search, Send } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useHiringQueriesQuery, useListPostsQuery, usePostSourcesQuery, useSearchPostsMutation, useSetPostSourceMutation, useSetPostStatusMutation } from '@/app/api/outreach';
 import { Pager } from '@/common/components/Pager';
 import { StatusBadge } from '@/common/components/StatusBadge';
 import { Alert, Badge, Button, Card, ErrorMessage, Input, PageHeader, Select, Spinner, Tabs } from '@/common/components/ui';
 import { SourceList } from '@/modules/Jobs/JobSourcesPage';
+import { SendPostMailDialog } from './SendPostMailDialog';
 
 const PAGE_SIZE = 10;
 
@@ -43,10 +44,11 @@ const latestRun = sources => Math.max(0, ...(sources ?? []).map(source => (sourc
 
 export default function HiringPostsPage() {
   const { t, i18n } = useTranslation();
-  const navigate = useNavigate();
   const [status, setStatus] = useState('NEW');
   const [query, setQuery] = useState('');
   const [postedWithin, setPostedWithin] = useState('week');
+  // { post, email } while the send-mail dialog is open.
+  const [mailing, setMailing] = useState(null);
   const [page, setPage] = useState(1);
   // Set while a queued search runs: the latest source run seen before it started. Lists refresh until a newer run shows up.
   const [pendingSince, setPendingSince] = useState(null);
@@ -183,8 +185,8 @@ export default function HiringPostsPage() {
                 <p className="mt-2 line-clamp-4 whitespace-pre-line text-sm text-slate-700">{post.text}</p>
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   {post.extractedEmails.map(email => (
-                    <Button key={email} variant="secondary" icon={Mail} onClick={() => navigate(`/outreach/new?email=${encodeURIComponent(email)}&name=${encodeURIComponent(post.author ?? '')}&hiringPostId=${post.id}`)}>
-                      {email}
+                    <Button key={email} icon={Send} onClick={() => setMailing({ post, email })}>
+                      {t('posts.sendMail', 'Send mail to {{email}}', { email })}
                     </Button>
                   ))}
                   {post.extractedEmails.length === 0 && <Badge>{t('posts.noEmail', 'no email in post')}</Badge>}
@@ -202,6 +204,7 @@ export default function HiringPostsPage() {
           </ul>
         )}
         {data && <Pager page={page} total={data.total} pageSize={PAGE_SIZE} onChange={setPage} />}
+        {mailing && <SendPostMailDialog post={mailing.post} email={mailing.email} onClose={() => setMailing(null)} />}
       </div>
     </div>
   );

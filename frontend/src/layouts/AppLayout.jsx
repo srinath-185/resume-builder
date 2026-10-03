@@ -58,7 +58,13 @@ export default function AppLayout() {
 
   return (
     <div className="flex min-h-full">
-      <aside className={clsx('fixed inset-y-0 left-0 z-40 w-60 border-r border-slate-200 bg-white p-4 transition-transform lg:static lg:translate-x-0', open ? 'translate-x-0' : '-translate-x-full')}>
+      <aside
+        className={clsx(
+          // Scrolls on its own so every link stays reachable on short screens.
+          'fixed inset-y-0 left-0 z-40 w-60 shrink-0 overflow-y-auto overscroll-contain border-r border-slate-200 bg-white p-4 transition-transform lg:sticky lg:top-0 lg:h-screen lg:translate-x-0',
+          open ? 'translate-x-0' : '-translate-x-full',
+        )}
+      >
         <div className="mb-6 flex items-center gap-2 px-2 text-base font-semibold text-slate-900">
           <FileText className="size-5 text-brand-600" aria-hidden />
           Resume Builder
