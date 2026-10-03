@@ -1,13 +1,4 @@
-import { api } from './baseApi';
-
-function queryString(params) {
-  const search = new URLSearchParams();
-  for (const [key, value] of Object.entries(params ?? {})) {
-    if (value !== undefined && value !== '' && value !== null && value !== false) search.set(key, String(value));
-  }
-  const text = search.toString();
-  return text ? `?${text}` : '';
-}
+import { api, queryString } from './baseApi';
 
 export const jobsApi = api.injectEndpoints({
   endpoints: build => ({

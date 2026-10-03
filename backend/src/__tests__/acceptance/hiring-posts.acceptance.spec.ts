@@ -52,7 +52,7 @@ describe('Hiring posts and contacts (acceptance)', () => {
 
   it('previews queries with location, without it, and with a custom template', async () => {
     let queries = (await client.get('/api/hiring-posts/queries').set(user.auth).expect(200)).body.data.queries;
-    expect(queries).to.eql(['"hiring" AND "Senior Software Engineer" AND "Chennai, India"', '"hiring" AND "Software Engineer" AND "Chennai, India"']);
+    expect(queries).to.eql(['"hiring" AND "Senior Software Engineer" AND "Chennai"', '"hiring" AND "Software Engineer" AND "Chennai"']);
 
     await client.put('/api/profile').set(user.auth).send({ location: null }).expect(200);
     queries = (await client.get('/api/hiring-posts/queries').set(user.auth)).body.data.queries;
@@ -66,6 +66,24 @@ describe('Hiring posts and contacts (acceptance)', () => {
     expect(invalid.body.error.code).to.equal('HIRING_QUERY_INVALID');
   });
 
+  it('uses the separate hiring-post title and location boxes over the profile', async () => {
+    await client
+      .put('/api/profile')
+      .set(user.auth)
+      .send({ hiringQueryTemplate: null, hiringQueryTitle: 'Node.js Developer, MERN Developer', hiringQueryLocation: 'Bengaluru, Karnataka' })
+      .expect(200);
+    let queries = (await client.get('/api/hiring-posts/queries').set(user.auth)).body.data.queries;
+    expect(queries).to.eql(['"hiring" AND "Node.js Developer" AND "Bengaluru"', '"hiring" AND "MERN Developer" AND "Bengaluru"']);
+
+    await client.put('/api/profile').set(user.auth).send({ hiringQueryTitle: '', hiringQueryLocation: null, location: 'Chennai' }).expect(200);
+    queries = (await client.get('/api/hiring-posts/queries').set(user.auth)).body.data.queries;
+    expect(queries[0]).to.equal('"hiring" AND "Senior Software Engineer" AND "Chennai"');
+
+    await client.put('/api/profile').set(user.auth).send({ targetTitles: ['Backend Developer — GoldArk (Gold Savings App)', 'Backend Developer | Payments'] }).expect(200);
+    queries = (await client.get('/api/hiring-posts/queries').set(user.auth)).body.data.queries;
+    expect(queries).to.eql(['"hiring" AND "Backend Developer" AND "Chennai"']);
+  });
+
   it('searches enabled sources, dedupes posts and creates contacts from emails', async () => {
     const service = await app.get<HiringPostService>('services.HiringPostService');
     const summary = await service.search({ userId: user.id });
@@ -75,13 +93,30 @@ describe('Hiring posts and contacts (acceptance)', () => {
     const again = await service.search({ userId: user.id });
     expect(again.created).to.equal(0);
 
-    const posts = (await client.get('/api/hiring-posts').set(user.auth).expect(200)).body.data;
+    const posts = (await client.get('/api/hiring-posts').set(user.auth).expect(200)).body.data.items;
     expect(posts.map((p: { postUrl: string }) => p.postUrl).sort()).to.eql([
       'https://www.linkedin.com/posts/jane_hiring-1',
       'https://www.linkedin.com/posts/ravi_hiring-2',
     ]);
     const contacts = (await client.get('/api/contacts').set(user.auth)).body.data;
     expect(contacts).to.containDeep([{ email: 'talent@globex.io', name: 'Jane Doe', source: 'POST', doNotContact: false }]);
+  });
+
+  it('searches stored posts and pages through them', async () => {
+    await (await app.get<HiringPostService>('services.HiringPostService')).search({ userId: user.id });
+    const matched = (await client.get('/api/hiring-posts?q=globex').set(user.auth).expect(200)).body.data;
+    expect(matched).to.containDeep({ total: 1, items: [{ author: 'Jane Doe' }] });
+    const byAuthor = (await client.get('/api/hiring-posts?q=ravi').set(user.auth)).body.data;
+    expect(byAuthor.total).to.equal(1);
+    const regexSafe = (await client.get('/api/hiring-posts?q=.*').set(user.auth)).body.data;
+    expect(regexSafe.total).to.equal(0);
+
+    const first = (await client.get('/api/hiring-posts?limit=1&page=1').set(user.auth)).body.data;
+    const second = (await client.get('/api/hiring-posts?limit=1&page=2').set(user.auth)).body.data;
+    expect(first).to.containDeep({ total: 2, page: 1, limit: 1 });
+    expect(first.items).to.have.length(1);
+    expect(second.items).to.have.length(1);
+    expect(second.items[0].id).to.not.equal(first.items[0].id);
   });
 
   it('runs a manual search through the queue and rate-limits repeats', async () => {
@@ -91,6 +126,12 @@ describe('Hiring posts and contacts (acceptance)', () => {
     expect(serp.queries).to.have.length(2);
     const again = await client.post('/api/hiring-posts/search').set(user.auth).expect(429);
     expect(again.body.error.code).to.equal('DISCOVERY_TOO_SOON');
+  });
+
+  it('refuses a manual search when no post source is enabled', async () => {
+    await client.put('/api/hiring-posts/sources/serpapi-posts').set(user.auth).send({ enabled: false }).expect(200);
+    const refused = await client.post('/api/hiring-posts/search').set(user.auth).expect(400);
+    expect(refused.body.error.code).to.equal('NO_POST_SOURCES');
   });
 
   it('opts into the unofficial source', async () => {
@@ -119,8 +160,8 @@ describe('Hiring posts and contacts (acceptance)', () => {
 
   it('updates post status', async () => {
     await (await app.get<HiringPostService>('services.HiringPostService')).search({ userId: user.id });
-    const [post] = (await client.get('/api/hiring-posts').set(user.auth)).body.data;
+    const [post] = (await client.get('/api/hiring-posts').set(user.auth)).body.data.items;
     await client.patch(`/api/hiring-posts/${post.id}`).set(user.auth).send({ status: 'IGNORED' }).expect(200);
-    expect((await client.get('/api/hiring-posts?status=IGNORED').set(user.auth)).body.data).to.have.length(1);
+    expect((await client.get('/api/hiring-posts?status=IGNORED').set(user.auth)).body.data.total).to.equal(1);
   });
 });

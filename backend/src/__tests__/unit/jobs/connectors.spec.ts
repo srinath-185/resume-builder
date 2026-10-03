@@ -3,6 +3,7 @@ import { ResilientHttpClient } from '../../../common/http/resilient-http.client'
 import { AdzunaConnector } from '../../../services/jobs/connectors/adzuna.connector';
 import { createApifyLinkedInConnector, renderActorInput } from '../../../services/jobs/connectors/apify.connector';
 import { JSearchConnector } from '../../../services/jobs/connectors/jsearch.connector';
+import { ApifyLinkedInPostsConnector } from '../../../services/outreach/post-connectors';
 
 function http(name: string, body: unknown, captured: Array<{ url: string; init?: RequestInit }>): ResilientHttpClient {
   return new ResilientHttpClient({
@@ -82,5 +83,35 @@ describe('Job source connectors', () => {
     expect(JSON.parse(String(captured[0].init?.body))).to.eql({ title: 'Backend Engineer', location: 'Chennai', rows: 10 });
     expect(jobs[0]).to.containDeep({ source: 'apify-linkedin', externalId: 'L1', company: 'Hooli', description: 'Kafka' });
     expect(connector.info.official).to.be.false();
+  });
+});
+
+describe('Apify LinkedIn posts connector', () => {
+  afterEach(() => {
+    for (const key of ['APIFY_TOKEN', 'APIFY_LINKEDIN_POSTS_ACTOR', 'APIFY_LINKEDIN_POSTS_INPUT']) delete process.env[key];
+  });
+
+  it('sends the boolean query and maps harvestapi/linkedin-post-search output', async () => {
+    process.env.APIFY_TOKEN = 'apify';
+    process.env.APIFY_LINKEDIN_POSTS_ACTOR = 'harvestapi/linkedin-post-search';
+    const captured: Array<{ url: string; init?: RequestInit }> = [];
+    const connector = new ApifyLinkedInPostsConnector(
+      http('apify-linkedin-posts', [
+        {
+          linkedinUrl: 'https://www.linkedin.com/posts/jane_hiring-123',
+          content: 'We are hiring a MERN developer in Coimbatore. Mail jobs@acme.io',
+          author: { name: 'Jane Doe', linkedinUrl: 'https://www.linkedin.com/in/jane' },
+          postedAt: { date: '2026-10-01T10:00:00.000Z', timestamp: 1790848800000 },
+        },
+        { linkedinUrl: 'https://www.linkedin.com/posts/empty-1' },
+      ], captured),
+    );
+    expect(connector.isConfigured()).to.be.true();
+    const posts = await connector.search('"hiring" AND "MERN Developer"', 5);
+    expect(captured[0].url).to.match(/acts\/harvestapi~linkedin-post-search\/run-sync-get-dataset-items/);
+    expect(JSON.parse(String(captured[0].init?.body))).to.eql({ searchQueries: ['"hiring" AND "MERN Developer"'], maxPosts: 5 });
+    expect(posts).to.have.length(1);
+    expect(posts[0]).to.containDeep({ url: 'https://www.linkedin.com/posts/jane_hiring-123', author: 'Jane Doe', authorUrl: 'https://www.linkedin.com/in/jane' });
+    expect(posts[0].postedAt?.toISOString()).to.equal('2026-10-01T10:00:00.000Z');
   });
 });

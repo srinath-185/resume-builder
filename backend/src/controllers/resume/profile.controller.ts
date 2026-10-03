@@ -42,6 +42,8 @@ export class ProfileController {
               },
               defaultTemplateId: { type: 'string', maxLength: 60, nullable: true },
               hiringQueryTemplate: { type: 'string', maxLength: 300, nullable: true },
+              hiringQueryTitle: { type: 'string', maxLength: 300, nullable: true },
+              hiringQueryLocation: { type: 'string', maxLength: 120, nullable: true },
               autoApplyOnApprove: { type: 'boolean' },
             },
           },

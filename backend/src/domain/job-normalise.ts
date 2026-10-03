@@ -25,6 +25,16 @@ export interface JobSearchQuery {
 
 const COMPANY_SUFFIXES = /\b(inc|incorporated|llc|ltd|limited|pvt|private|plc|gmbh|corp|corporation|co|company|technologies|technology|solutions|labs)\b\.?/g;
 
+/**
+ * Turns a resume heading such as "Backend Developer — GoldArk (Gold Savings App)"
+ * into a job-board query ("Backend Developer"): drops anything after a
+ * dash, pipe, "@" or " at ", and any bracketed text.
+ */
+export function searchTitle(title: string): string {
+  const head = title.split(/\s+[—–|@-]\s+|\s+at\s+|,\s+/i)[0];
+  return head.replace(/\(.*?\)|\[.*?\]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 export function normaliseCompany(company: string): string {
   return company.toLowerCase().replace(/[.,()]/g, ' ').replace(COMPANY_SUFFIXES, ' ').replace(/\s+/g, ' ').trim();
 }

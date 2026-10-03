@@ -3,6 +3,7 @@ import { inject } from '@loopback/core';
 import { del, get, param, patch, post, put, requestBody, SchemaObject } from '@loopback/rest';
 import { SecurityBindings, UserProfile } from '@loopback/security';
 import { currentUserId } from '../../authentication/jwt.strategy';
+import { PaginatedResult, parsePage } from '../../common/utils/list-query.util';
 import { HiringPost, HiringPostStatus, RecruiterContact } from '../../models';
 import { ContactInput, ContactService, ContactUpdate } from '../../services/outreach/contact.service';
 import { HiringPostService, PostSourceView } from '../../services/outreach/hiring-post.service';
@@ -48,8 +49,14 @@ export class HiringPostController {
   }
 
   @get('/hiring-posts')
-  list(@inject(SecurityBindings.USER) profile: UserProfile, @param.query.string('status') status?: HiringPostStatus): Promise<HiringPost[]> {
-    return this.posts.list(currentUserId(profile), status);
+  list(
+    @inject(SecurityBindings.USER) profile: UserProfile,
+    @param.query.string('status') status?: HiringPostStatus,
+    @param.query.string('q') search?: string,
+    @param.query.number('page') page?: number,
+    @param.query.number('limit') limit?: number,
+  ): Promise<PaginatedResult<HiringPost>> {
+    return this.posts.list(currentUserId(profile), { status, search }, parsePage(page, limit));
   }
 
   @patch('/hiring-posts/{id}')

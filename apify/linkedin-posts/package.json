@@ -1,0 +1,14 @@
+{
+    "name": "linkedin-post-search",
+    "version": "0.0.1",
+    "private": true,
+    "type": "module",
+    "description": "LinkedIn content search with a signed-in session, for resume-builder hiring posts.",
+    "dependencies": {
+        "apify": "^3.2.0",
+        "playwright": "*"
+    },
+    "scripts": {
+        "start": "node src/main.js"
+    }
+}

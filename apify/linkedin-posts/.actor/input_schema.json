@@ -1,0 +1,38 @@
+{
+    "title": "LinkedIn post search",
+    "type": "object",
+    "schemaVersion": 1,
+    "properties": {
+        "searchQueries": {
+            "title": "Search queries",
+            "type": "array",
+            "description": "LinkedIn content-search queries. Boolean syntax works, e.g. \"hiring\" AND \"Backend Developer\".",
+            "editor": "stringList",
+            "prefill": ["\"hiring\" AND \"Backend Developer\""]
+        },
+        "maxPosts": {
+            "title": "Max posts per query",
+            "type": "integer",
+            "description": "Stops scrolling once this many posts are collected for a query.",
+            "default": 20,
+            "minimum": 1,
+            "maximum": 100
+        },
+        "datePosted": {
+            "title": "Posted within",
+            "type": "string",
+            "description": "LinkedIn's date filter.",
+            "editor": "select",
+            "enum": ["past-24h", "past-week", "past-month", "any"],
+            "default": "past-week"
+        },
+        "liAtCookie": {
+            "title": "li_at cookie",
+            "type": "string",
+            "description": "Optional. Overrides the LINKEDIN_LI_AT environment variable. Copy it from your browser's linkedin.com cookies.",
+            "editor": "textfield",
+            "isSecret": true
+        }
+    },
+    "required": ["searchQueries"]
+}

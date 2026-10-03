@@ -103,18 +103,20 @@ export class ApifyLinkedInPostsConnector implements HiringPostConnector {
       body: input,
     });
     return (Array.isArray(response.data) ? response.data : []).slice(0, limit).flatMap(item => {
-      const url = safeUrl(item.url ?? item.postUrl ?? item.link);
-      const body = text(item.text) ?? text(item.content) ?? text(item.postText);
+      // Field names differ by actor; harvestapi/linkedin-post-search uses linkedinUrl, content, author.linkedinUrl and postedAt.date.
+      const url = safeUrl(item.linkedinUrl ?? item.url ?? item.postUrl ?? item.link);
+      const body = text(item.content) ?? text(item.text) ?? text(item.postText);
       if (!url || !body) return [];
       const author = item.author && typeof item.author === 'object' ? (item.author as Item) : undefined;
+      const posted = item.postedAt && typeof item.postedAt === 'object' ? (item.postedAt as Item) : undefined;
       return [
         {
           source: this.info.key,
           url,
           author: text(item.authorName) ?? text(author?.name),
-          authorUrl: safeUrl(item.authorProfileUrl ?? author?.url),
+          authorUrl: safeUrl(item.authorProfileUrl ?? author?.linkedinUrl ?? author?.url),
           text: stripHtml(body),
-          postedAt: toDate(item.postedAt ?? item.postedAtISO ?? item.date),
+          postedAt: toDate(posted ? (posted.date ?? posted.timestamp) : (item.postedAt ?? item.postedAtISO ?? item.date)),
         },
       ];
     });

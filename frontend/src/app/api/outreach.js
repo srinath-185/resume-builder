@@ -1,4 +1,4 @@
-import { api } from './baseApi';
+import { api, queryString } from './baseApi';
 
 export const outreachApi = api.injectEndpoints({
   endpoints: build => ({
@@ -6,8 +6,8 @@ export const outreachApi = api.injectEndpoints({
     hiringQueries: build.query({ query: () => '/hiring-posts/queries', providesTags: ['Profile'] }),
     postSources: build.query({ query: () => '/hiring-posts/sources', providesTags: ['PostSource'] }),
     setPostSource: build.mutation({ query: ({ key, enabled }) => ({ url: `/hiring-posts/sources/${key}`, method: 'PUT', body: { enabled } }), invalidatesTags: ['PostSource'] }),
-    searchPosts: build.mutation({ query: () => ({ url: '/hiring-posts/search', method: 'POST' }), invalidatesTags: ['PostSource'] }),
-    listPosts: build.query({ query: status => `/hiring-posts${status ? `?status=${status}` : ''}`, providesTags: ['HiringPost'] }),
+    searchPosts: build.mutation({ query: () => ({ url: '/hiring-posts/search', method: 'POST' }), invalidatesTags: ['PostSource', 'HiringPost'] }),
+    listPosts: build.query({ query: params => `/hiring-posts${queryString(params)}`, providesTags: ['HiringPost'] }),
     setPostStatus: build.mutation({ query: ({ id, status }) => ({ url: `/hiring-posts/${id}`, method: 'PATCH', body: { status } }), invalidatesTags: ['HiringPost'] }),
 
     // Contacts

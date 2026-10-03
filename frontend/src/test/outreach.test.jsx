@@ -76,13 +76,44 @@ describe('HiringPostsPage', () => {
     mockApi({
       'GET /hiring-posts/queries': { queries: ['"hiring" AND "SRE" AND "Pune"'] },
       'GET /hiring-posts/sources': [{ key: 'serpapi-posts', label: 'Google', description: 'd', official: true, configured: true, enabled: true }],
-      'GET /hiring-posts': [{ id: 'p1', author: 'Jane Doe', title: 'SRE', text: 'We are hiring SREs', extractedEmails: ['jobs@acme.io'], postUrl: 'https://linkedin.test/posts/1', status: 'NEW' }],
+      'GET /hiring-posts': { items: [{ id: 'p1', author: 'Jane Doe', title: 'SRE', text: 'We are hiring SREs', extractedEmails: ['jobs@acme.io'], postUrl: 'https://linkedin.test/posts/1', status: 'NEW' }], total: 1, page: 1, limit: 10 },
     });
     const { router } = renderPage(<HiringPostsPage />, { route: '/hiring-posts', path: '/hiring-posts', extraRoutes: [{ path: '/outreach/new', element: <p>compose</p> }] });
     const user = userEvent.setup();
     expect(await screen.findByText('"hiring" AND "SRE" AND "Pune"')).toBeInTheDocument();
     await user.click(await screen.findByRole('button', { name: 'jobs@acme.io' }));
     await waitFor(() => expect(router.state.location.search).toBe('?email=jobs%40acme.io&name=Jane%20Doe&hiringPostId=p1'));
+  });
+
+  it('searches stored posts and pages through them', async () => {
+    const post = n => ({ id: `p${n}`, author: `Author ${n}`, text: `Post ${n}`, extractedEmails: [], postUrl: `https://linkedin.test/posts/${n}`, status: 'NEW' });
+    const { calls } = mockApi({
+      'GET /hiring-posts/queries': { queries: [] },
+      'GET /hiring-posts/sources': [{ key: 'serpapi-posts', label: 'Google', description: 'd', official: true, configured: true, enabled: true }],
+      'GET /hiring-posts': ({ url }) => {
+        const page = Number(url.searchParams.get('page'));
+        return { items: [post(page)], total: 15, page, limit: 10 };
+      },
+    });
+    renderPage(<HiringPostsPage />, { route: '/hiring-posts', path: '/hiring-posts' });
+    const user = userEvent.setup();
+    expect(await screen.findByText('Post 1')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(await screen.findByText('Post 2')).toBeInTheDocument();
+
+    await user.type(screen.getByRole('textbox', { name: 'Search posts' }), 'react');
+    await waitFor(() => expect(calls.filter(call => call.key === 'GET /hiring-posts').at(-1).search).toBe('?status=NEW&q=react&page=1&limit=10'));
+  });
+
+  it('disables searching and explains why when no post source can run', async () => {
+    mockApi({
+      'GET /hiring-posts/queries': { queries: ['"hiring" AND "SRE"'] },
+      'GET /hiring-posts/sources': [{ key: 'serpapi-posts', label: 'Google', description: 'd', official: true, configured: false, enabled: true }],
+      'GET /hiring-posts': { items: [], total: 0, page: 1, limit: 10 },
+    });
+    renderPage(<HiringPostsPage />, { route: '/hiring-posts', path: '/hiring-posts' });
+    expect(await screen.findByText(/No post source can run yet/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Search posts' })).toBeDisabled();
   });
 });
 

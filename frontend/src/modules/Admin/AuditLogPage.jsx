@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useListAuditLogsQuery } from '@/app/api/admin';
 import { DataTable } from '@/common/components/DataTable';
 import { ErrorMessage, Input, PageHeader, Spinner } from '@/common/components/ui';
-import { Pager } from './Pager';
+import { Pager } from '@/common/components/Pager';
 
 const PAGE_SIZE = 50;
 

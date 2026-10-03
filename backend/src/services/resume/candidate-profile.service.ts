@@ -1,3 +1,4 @@
+import { searchTitle } from '../../domain/job-normalise';
 import { BindingScope, inject, injectable } from '@loopback/core';
 import { AppValidationError, ERROR_CODES } from '../../common/errors';
 import { idString } from '../../common/utils/id.util';
@@ -18,6 +19,8 @@ export interface ProfileUpdate {
   dailyCaps?: Partial<DailyCaps>;
   defaultTemplateId?: string | null;
   hiringQueryTemplate?: string | null;
+  hiringQueryTitle?: string | null;
+  hiringQueryLocation?: string | null;
   autoApplyOnApprove?: boolean;
 }
 
@@ -77,6 +80,8 @@ export class CandidateProfileService {
       if (problem) throw new AppValidationError(ERROR_CODES.HIRING_QUERY_INVALID, problem);
       data.hiringQueryTemplate = template || undefined;
     }
+    if (patch.hiringQueryTitle !== undefined) data.hiringQueryTitle = patch.hiringQueryTitle?.trim() || undefined;
+    if (patch.hiringQueryLocation !== undefined) data.hiringQueryLocation = patch.hiringQueryLocation?.trim() || undefined;
 
     await this.profiles.updateById(before.id!, data);
     const after = await this.profiles.findById(before.id!);
@@ -89,7 +94,7 @@ export class CandidateProfileService {
     const profile = await this.get(userId);
     const data: Partial<CandidateProfile> = {};
     if (profile.targetTitles.length === 0) {
-      data.targetTitles = cleanList(document.experience.slice(0, 2).map(role => role.title), 3);
+      data.targetTitles = cleanList(document.experience.slice(0, 2).map(role => searchTitle(role.title)), 3);
     }
     if (profile.skills.length === 0) data.skills = cleanList(document.skills, MAX_SEEDED_SKILLS);
     if (profile.yearsExperience === undefined) data.yearsExperience = yearsOfExperience(document);

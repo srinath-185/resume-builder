@@ -1,22 +1,51 @@
 import { ExternalLink, Mail, Search } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { useHiringQueriesQuery, useListPostsQuery, usePostSourcesQuery, useSearchPostsMutation, useSetPostSourceMutation, useSetPostStatusMutation } from '@/app/api/outreach';
+import { Pager } from '@/common/components/Pager';
 import { StatusBadge } from '@/common/components/StatusBadge';
-import { Alert, Badge, Button, Card, ErrorMessage, PageHeader, Spinner, Tabs } from '@/common/components/ui';
+import { Alert, Badge, Button, Card, ErrorMessage, Input, PageHeader, Spinner, Tabs } from '@/common/components/ui';
 import { SourceList } from '@/modules/Jobs/JobSourcesPage';
+
+const PAGE_SIZE = 10;
+
+const latestRun = sources => Math.max(0, ...(sources ?? []).map(source => (source.lastRunAt ? new Date(source.lastRunAt).getTime() : 0)));
 
 export default function HiringPostsPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [status, setStatus] = useState('NEW');
+  const [query, setQuery] = useState('');
+  const [page, setPage] = useState(1);
+  // Set while a queued search runs: the latest source run seen before it started. Lists refresh until a newer run shows up.
+  const [pendingSince, setPendingSince] = useState(null);
+  const searching = pendingSince !== null;
+  const pollingInterval = searching ? 3000 : 0;
   const { data: queries } = useHiringQueriesQuery();
-  const { data: sources } = usePostSourcesQuery();
-  const { data: posts, isLoading, error } = useListPostsQuery(status || undefined);
+  const { data: sources } = usePostSourcesQuery(undefined, { pollingInterval });
+  const { data, isLoading, error } = useListPostsQuery({ status: status || undefined, q: query.trim() || undefined, page, limit: PAGE_SIZE }, { pollingInterval });
+  const posts = data?.items;
+  const canSearch = Boolean(sources?.some(source => source.configured && source.enabled));
   const [search, searchState] = useSearchPostsMutation();
   const [setSource] = useSetPostSourceMutation();
   const [setPostStatus] = useSetPostStatusMutation();
+
+  useEffect(() => {
+    if (searching && latestRun(sources) > pendingSince) setPendingSince(null);
+  }, [searching, pendingSince, sources]);
+
+  useEffect(() => {
+    if (!searching) return undefined;
+    const timeout = setTimeout(() => setPendingSince(null), 3 * 60_000);
+    return () => clearTimeout(timeout);
+  }, [searching]);
+
+  const startSearch = async () => {
+    const before = latestRun(sources);
+    const result = await search();
+    if (!result.error) setPendingSince(before);
+  };
 
   return (
     <div>
@@ -24,14 +53,17 @@ export default function HiringPostsPage() {
         title={t('posts.title', 'Hiring posts')}
         description={t('posts.description', 'Public LinkedIn posts that match your titles. Emails found in a post become contacts you can write to.')}
         actions={
-          <Button icon={Search} loading={searchState.isLoading} onClick={() => search()}>
+          <Button icon={Search} loading={searchState.isLoading || searching} disabled={!canSearch} onClick={startSearch}>
             {t('posts.search', 'Search posts')}
           </Button>
         }
       />
       <div className="space-y-4">
         <ErrorMessage error={searchState.error ?? error} />
-        {searchState.isSuccess && <Alert tone="green">{t('posts.searching', 'Searching… new posts appear below.')}</Alert>}
+        {sources && !canSearch && (
+          <Alert tone="amber">{t('posts.noSources', 'No post source can run yet. Add a SerpAPI key on the server (SERPAPI_KEY), then turn it on under Post sources.')}</Alert>
+        )}
+        {searching && <Alert tone="green">{t('posts.searching', 'Searching… new posts appear below.')}</Alert>}
         <div className="grid gap-4 lg:grid-cols-2">
           <Card
             title={t('posts.queries', 'Queries that will run')}
@@ -66,12 +98,25 @@ export default function HiringPostsPage() {
             { id: '', label: t('posts.all', 'All') },
           ]}
           active={status}
-          onChange={setStatus}
+          onChange={value => {
+            setStatus(value);
+            setPage(1);
+          }}
+        />
+        <Input
+          className="max-w-sm"
+          placeholder={t('posts.filterPlaceholder', 'Search post text, author or title')}
+          aria-label={t('posts.filterLabel', 'Search posts')}
+          value={query}
+          onChange={event => {
+            setQuery(event.target.value);
+            setPage(1);
+          }}
         />
         {isLoading ? (
           <Spinner />
         ) : !posts?.length ? (
-          <p className="text-sm text-slate-600">{t('posts.empty', 'No posts here.')}</p>
+          <p className="text-sm text-slate-600">{query.trim() ? t('posts.noMatch', 'No posts match your search.') : t('posts.empty', 'No posts here.')}</p>
         ) : (
           <ul className="space-y-3">
             {posts.map(post => (
@@ -104,6 +149,7 @@ export default function HiringPostsPage() {
             ))}
           </ul>
         )}
+        {data && <Pager page={page} total={data.total} pageSize={PAGE_SIZE} onChange={setPage} />}
       </div>
     </div>
   );

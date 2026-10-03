@@ -55,6 +55,14 @@ export class CandidateProfile extends OwnedEntity {
   @property({ type: 'string' })
   hiringQueryTemplate?: string;
 
+  /** Hiring-post search titles, comma separated. Empty = each target title. */
+  @property({ type: 'string' })
+  hiringQueryTitle?: string;
+
+  /** Hiring-post search location. Empty = the profile location ("remote" when remote only). */
+  @property({ type: 'string' })
+  hiringQueryLocation?: string;
+
   @property({ type: 'date' })
   lastReviewReminderAt?: Date;
 

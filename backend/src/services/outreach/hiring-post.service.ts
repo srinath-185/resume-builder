@@ -1,6 +1,10 @@
 import { BindingScope, inject, injectable } from '@loopback/core';
+import { Where } from '@loopback/repository';
 import { envInt } from '../../common/config/env.util';
 import { AppBusinessError, AppNotFoundError, AppRateLimitError, ERROR_CODES } from '../../common/errors';
+import { PageRequest, PaginatedResult, toPaginated } from '../../common/utils/list-query.util';
+import { searchTitle } from '../../domain/job-normalise';
+import { escapeRegex } from '../../domain/keyword-match';
 import { buildHiringQuery, canonicalPostUrl, DEFAULT_HIRING_QUERY_TEMPLATE, extractEmails } from '../../domain/hiring-query';
 import { ContactSource, HiringPost, HiringPostStatus, JobSourceSetting } from '../../models';
 import { QueueService } from '../../queue/queue.service';
@@ -55,10 +59,18 @@ export class HiringPostService {
   ) {}
 
   async queries(userId: string): Promise<string[]> {
+    return (await this.plannedQueries(userId)).map(planned => planned.query);
+  }
+
+  /** One query per search title, paired with the title it was built from. */
+  private async plannedQueries(userId: string): Promise<Array<{ title: string; query: string }>> {
     const profile = await this.profiles.get(userId);
     const template = profile.hiringQueryTemplate || DEFAULT_HIRING_QUERY_TEMPLATE;
-    const location = profile.remoteOnly ? 'remote' : profile.location;
-    return profile.targetTitles.slice(0, MAX_TITLES).map(title => buildHiringQuery(template, title, location));
+    // City only: "Coimbatore, Tamil Nadu" → "Coimbatore".
+    const location = (profile.hiringQueryLocation || (profile.remoteOnly ? 'remote' : profile.location) || '').split(',')[0].trim();
+    const custom = (profile.hiringQueryTitle ?? '').split(',').map(title => title.trim()).filter(Boolean);
+    const titles = [...new Set((custom.length ? custom : profile.targetTitles).map(searchTitle).filter(Boolean))];
+    return titles.slice(0, MAX_TITLES).map(title => ({ title, query: buildHiringQuery(template, title, location) }));
   }
 
   async sources(userId: string): Promise<PostSourceView[]> {
@@ -87,8 +99,12 @@ export class HiringPostService {
   async requestSearch(userId: string): Promise<{ jobId: string; queries: string[] }> {
     const queries = await this.queries(userId);
     if (queries.length === 0) throw new AppBusinessError(ERROR_CODES.PROFILE_INCOMPLETE, 'Add at least one target job title to your profile first');
+    const sources = await this.sources(userId);
+    if (!sources.some(view => view.enabled && view.configured)) {
+      throw new AppBusinessError(ERROR_CODES.NO_POST_SOURCES, 'No post source is configured and enabled. Set SERPAPI_KEY on the server, then enable it under Post sources.');
+    }
     const minMinutes = envInt('HIRING_POST_MIN_INTERVAL_MINUTES', 60);
-    const lastRun = Math.max(0, ...(await this.sources(userId)).map(view => view.lastRunAt?.getTime() ?? 0));
+    const lastRun = Math.max(0, ...sources.map(view => view.lastRunAt?.getTime() ?? 0));
     if (Date.now() - lastRun < minMinutes * 60_000) {
       throw new AppRateLimitError(ERROR_CODES.DISCOVERY_TOO_SOON, `Post searches can run at most every ${minMinutes} minutes`);
     }
@@ -97,8 +113,8 @@ export class HiringPostService {
   }
 
   async search({ userId }: HiringPostJob): Promise<HiringSearchSummary> {
-    const profile = await this.profiles.get(userId);
-    const queries = await this.queries(userId);
+    const planned = await this.plannedQueries(userId);
+    const queries = planned.map(entry => entry.query);
     const summary: HiringSearchSummary = { queries, found: 0, created: 0, contactsCreated: 0, errors: [] };
     const enabledKeys = new Set((await this.sources(userId)).filter(view => view.enabled && view.configured).map(view => view.key));
     const limit = envInt('HIRING_POSTS_PER_QUERY', 20);
@@ -106,12 +122,12 @@ export class HiringPostService {
     for (const connector of this.registry.all().filter(candidate => enabledKeys.has(candidate.info.key))) {
       let found = 0;
       let error: string | undefined;
-      for (const [index, query] of queries.entries()) {
+      for (const { title, query } of planned) {
         try {
           const results = await connector.search(query, limit);
           found += results.length;
           for (const raw of results) {
-            const created = await this.store(userId, raw, query, profile.targetTitles[index]);
+            const created = await this.store(userId, raw, query, title);
             if (!created) continue;
             summary.created++;
             summary.contactsCreated += await this.contacts.upsertDiscovered(userId, created.extractedEmails, ContactSource.POST, created.id!, created.author);
@@ -130,9 +146,19 @@ export class HiringPostService {
     return summary;
   }
 
-  list(userId: string, status?: HiringPostStatus): Promise<HiringPost[]> {
-    const where = status && Object.values(HiringPostStatus).includes(status) ? { status } : undefined;
-    return this.posts.findOwned(userId, { where, order: ['createdAt DESC'], limit: 200 });
+  async list(userId: string, filters: { status?: HiringPostStatus; search?: string }, page: PageRequest): Promise<PaginatedResult<HiringPost>> {
+    const clauses: Where<HiringPost>[] = [];
+    if (filters.status && Object.values(HiringPostStatus).includes(filters.status)) clauses.push({ status: filters.status });
+    if (filters.search?.trim()) {
+      const pattern = new RegExp(escapeRegex(filters.search.trim().slice(0, 80)), 'i');
+      clauses.push({ or: [{ text: { regexp: pattern } }, { author: { regexp: pattern } }, { title: { regexp: pattern } }] });
+    }
+    const where = clauses.length ? ({ and: clauses } as Where<HiringPost>) : undefined;
+    const [items, { count }] = await Promise.all([
+      this.posts.findOwned(userId, { where, order: ['createdAt DESC'], skip: page.skip, limit: page.limit }),
+      this.posts.countOwned(userId, where),
+    ]);
+    return toPaginated(items, count, page);
   }
 
   get(userId: string, id: string): Promise<HiringPost> {

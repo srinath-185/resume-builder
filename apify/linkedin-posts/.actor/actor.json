@@ -1,0 +1,14 @@
+{
+    "actorSpecification": 1,
+    "name": "my-actor",
+    "title": "LinkedIn post search",
+    "description": "Searches LinkedIn posts with a signed-in session (li_at cookie) and returns post URL, text, author and date.",
+    "version": "0.0",
+    "buildTag": "latest",
+    "usesStandbyMode": false,
+    "input": "./input_schema.json",
+    "storages": {
+        "dataset": "./dataset_schema.json"
+    },
+    "dockerfile": "../Dockerfile"
+}

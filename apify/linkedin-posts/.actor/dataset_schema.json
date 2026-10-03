@@ -1,0 +1,26 @@
+{
+    "actorSpecification": 1,
+    "fields": {
+        "type": "object",
+        "properties": {
+            "linkedinUrl": { "type": "string" },
+            "content": { "type": "string" },
+            "author": {
+                "type": "object",
+                "properties": { "name": { "type": ["string", "null"] }, "linkedinUrl": { "type": ["string", "null"] } }
+            },
+            "postedAt": {
+                "type": ["object", "null"],
+                "properties": { "date": { "type": "string" }, "timestamp": { "type": "integer" } }
+            },
+            "query": { "type": "string" }
+        }
+    },
+    "views": {
+        "overview": {
+            "title": "Posts",
+            "transformation": { "fields": ["linkedinUrl", "author.name", "postedAt.date", "content", "query"] },
+            "display": { "component": "table" }
+        }
+    }
+}

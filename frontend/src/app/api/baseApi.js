@@ -36,6 +36,16 @@ export async function envelopeBaseQuery(args, api, extraOptions) {
   return { data: data && typeof data === 'object' && data.success === true && 'data' in data ? data.data : data };
 }
 
+/** Builds `?a=1&b=2`, dropping empty and false values. */
+export function queryString(params) {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params ?? {})) {
+    if (value !== undefined && value !== '' && value !== null && value !== false) search.set(key, String(value));
+  }
+  const text = search.toString();
+  return text ? `?${text}` : '';
+}
+
 export const TAGS = ['Me', 'Resume', 'Profile', 'Template', 'Job', 'JobSource', 'Application', 'HiringPost', 'PostSource', 'Contact', 'Outreach', 'OutreachTemplate', 'Mail', 'PortalSession', 'Llm', 'AdminUser', 'AuditLog'];
 
 /** Feature files add their endpoints with `api.injectEndpoints`. */

@@ -8,7 +8,7 @@ import { selectRole, selectUser } from '@/app/authSlice';
 import { DataTable } from '@/common/components/DataTable';
 import { Badge, Button, ErrorMessage, Input, Modal, PageHeader, Select, Spinner } from '@/common/components/ui';
 import { ModuleForm } from '@/common/crud/ModuleLoader';
-import { Pager } from './Pager';
+import { Pager } from '@/common/components/Pager';
 
 const PAGE_SIZE = 25;
 const ROLES = ['user', 'admin', 'superadmin'];

@@ -1,5 +1,5 @@
 import { expect } from '@loopback/testlab';
-import { jobFingerprint, normaliseCompany, normaliseLocation, normaliseTitle, safeUrl, stripHtml, toDate } from '../../../domain/job-normalise';
+import { jobFingerprint, normaliseCompany, normaliseLocation, normaliseTitle, safeUrl, searchTitle, stripHtml, toDate } from '../../../domain/job-normalise';
 import { containsTerm, keywordScore } from '../../../domain/keyword-match';
 
 describe('Job normalisation', () => {
@@ -55,5 +55,18 @@ describe('Keyword pre-filter', () => {
 
   it('scores zero with no skills and unrelated title', () => {
     expect(keywordScore('anything', 'Chef', [], ['Engineer']).score).to.equal(0);
+  });
+});
+
+describe('searchTitle', () => {
+  it('reduces resume headings to a job-board query', () => {
+    expect(searchTitle('MERN Stack Developer — Payroll & HRMS SaaS Platform')).to.equal('MERN Stack Developer');
+    expect(searchTitle('Backend Developer — GoldArk (Gold Savings App)')).to.equal('Backend Developer');
+    expect(searchTitle('Software Engineer at Acme')).to.equal('Software Engineer');
+    expect(searchTitle('Senior Engineer | Payments')).to.equal('Senior Engineer');
+  });
+
+  it('keeps hyphenated titles intact', () => {
+    expect(searchTitle('Full-Stack Developer (Contract)')).to.equal('Full-Stack Developer');
   });
 });

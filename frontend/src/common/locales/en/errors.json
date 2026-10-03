@@ -41,6 +41,8 @@
   "PROFILE_INCOMPLETE": "Add at least one target job title to your profile first.",
   "JOB_NOT_FOUND": "Job not found.",
   "JOB_SOURCE_UNKNOWN": "Unknown job source.",
+  "NO_JOB_SOURCES": "No job source is set up yet. Ask the admin to add a JSearch or Adzuna key, then enable it under Job sources.",
+  "NO_POST_SOURCES": "No post source is set up yet. Ask the admin to add a SerpAPI key (or an Apify LinkedIn posts actor), then turn it on under Post sources.",
   "JOB_SCORING_IN_PROGRESS": "This job is already being scored.",
   "DISCOVERY_TOO_SOON": "A search ran recently. Try again in a few minutes.",
 

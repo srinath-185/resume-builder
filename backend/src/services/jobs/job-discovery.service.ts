@@ -1,7 +1,7 @@
 import { BindingScope, inject, injectable } from '@loopback/core';
 import { envInt } from '../../common/config/env.util';
 import { AppBusinessError, AppRateLimitError, ERROR_CODES } from '../../common/errors';
-import { jobFingerprint, JobSearchQuery, NormalisedJob } from '../../domain/job-normalise';
+import { jobFingerprint, JobSearchQuery, NormalisedJob, searchTitle } from '../../domain/job-normalise';
 import { keywordScore } from '../../domain/keyword-match';
 import { CandidateProfile, JobListing, JobListingStatus, MatchStatus } from '../../models';
 import { QueueService } from '../../queue/queue.service';
@@ -63,6 +63,9 @@ export class JobDiscoveryService {
     if (profile.targetTitles.length === 0) {
       throw new AppBusinessError(ERROR_CODES.PROFILE_INCOMPLETE, 'Add at least one target job title to your profile first');
     }
+    if ((await this.sources.active(userId)).length === 0) {
+      throw new AppBusinessError(ERROR_CODES.NO_JOB_SOURCES, 'No job source is configured and enabled. Add a JSearch or Adzuna key on the server, then enable it under Job sources.');
+    }
     const minMinutes = envInt('DISCOVERY_MIN_INTERVAL_MINUTES', 10);
     const lastRun = Math.max(0, ...(await this.sources.list(userId)).map(view => view.lastRunAt?.getTime() ?? 0));
     if (Date.now() - lastRun < minMinutes * 60_000) {
@@ -97,6 +100,7 @@ export class JobDiscoveryService {
 
     const queries = this.queriesFor(profile);
     const connectors = await this.sources.active(userId);
+    if (connectors.length === 0) this.logger.warn('Job discovery skipped: no job source is configured and enabled', { userId });
     const found = new Map<string, MergedJob>();
     for (const connector of connectors) {
       const jobs = await this.searchConnector(userId, connector, queries, summary);
@@ -138,7 +142,8 @@ export class JobDiscoveryService {
 
   queriesFor(profile: CandidateProfile): JobSearchQuery[] {
     const limit = envInt('JOBS_PER_QUERY', 20);
-    return profile.targetTitles.slice(0, MAX_TITLES_PER_RUN).map(title => ({
+    const titles = [...new Set(profile.targetTitles.map(searchTitle).filter(Boolean))];
+    return titles.slice(0, MAX_TITLES_PER_RUN).map(title => ({
       title,
       location: profile.remoteOnly ? undefined : profile.location || undefined,
       remoteOnly: profile.remoteOnly,

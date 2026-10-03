@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fromResumeForm, toResumeForm } from '@/common/resume/resumeForm';
-import ProfilePage, { fromProfileForm, toProfileForm } from '@/modules/Profile/ProfilePage';
+import ProfilePage, { fromProfileForm, previewHiringQueries, toProfileForm } from '@/modules/Profile/ProfilePage';
 import ResumesPage from '@/modules/Resumes/ResumesPage';
 import ResumeReviewPage from '@/screens/ResumeReview/ResumeReviewPage';
 import { DOCUMENT, PROFILE, RESUME, TEMPLATES } from './fixtures';
@@ -102,24 +102,45 @@ describe('ResumeReviewPage', () => {
 
 describe('ProfilePage', () => {
   it('converts lists, nulls empty fields and keeps caps', () => {
-    const values = { ...toProfileForm(PROFILE), location: '  ', targetTitles: 'A, B\nC', hiringQueryTemplate: '' };
-    expect(fromProfileForm(values)).toMatchObject({ targetTitles: ['A', 'B', 'C'], location: null, hiringQueryTemplate: null, dailyCaps: { tailor: 10, apply: 15, outreach: 10 } });
+    const values = { ...toProfileForm(PROFILE), location: '  ', targetTitles: 'A, B\nC', hiringQueryTitle: ' ', hiringQueryLocation: '' };
+    expect(fromProfileForm(values)).toMatchObject({
+      targetTitles: ['A', 'B', 'C'],
+      location: null,
+      hiringQueryTemplate: null,
+      hiringQueryTitle: null,
+      hiringQueryLocation: null,
+      dailyCaps: { tailor: 10, apply: 15, outreach: 10 },
+    });
   });
 
-  it('validates the hiring query template and saves', async () => {
+  it('previews hiring queries from the boxes, falling back to the profile', () => {
+    const base = { targetTitles: 'Backend Developer, MERN Developer', location: 'Coimbatore' };
+    expect(previewHiringQueries(base)).toEqual(['"hiring" AND "Backend Developer" AND "Coimbatore"', '"hiring" AND "MERN Developer" AND "Coimbatore"']);
+    expect(previewHiringQueries({ ...base, hiringQueryTitle: 'Node.js Developer', hiringQueryLocation: 'Bengaluru' })).toEqual(['"hiring" AND "Node.js Developer" AND "Bengaluru"']);
+    expect(previewHiringQueries({ ...base, location: '' })).toEqual(['"hiring" AND "Backend Developer"', '"hiring" AND "MERN Developer"']);
+    expect(previewHiringQueries({ targetTitles: 'MERN Stack Developer — Payroll & HRMS SaaS Platform\nBackend Developer — GoldArk (Gold Savings App)', location: 'Coimbatore, Tamil Nadu' })).toEqual([
+      '"hiring" AND "MERN Stack Developer" AND "Coimbatore"',
+      '"hiring" AND "Backend Developer" AND "Coimbatore"',
+    ]);
+    expect(previewHiringQueries({ ...base, location: '', remoteOnly: true })[0]).toBe('"hiring" AND "Backend Developer" AND "remote"');
+  });
+
+  it('saves the hiring-post title and location boxes', async () => {
     const { calls } = mockApi({ 'GET /profile': PROFILE, 'GET /resume-templates': TEMPLATES, 'PUT /profile': ({ body }) => ({ ...PROFILE, ...body }) });
     renderPage(<ProfilePage />);
     const user = userEvent.setup();
-    const query = await screen.findByLabelText('LinkedIn hiring-post query');
-    await user.type(query, '"hiring" only');
-    await user.click(screen.getByRole('button', { name: 'Save' }));
-    expect(await screen.findByText('Must contain {title}')).toBeInTheDocument();
-
-    await user.clear(query);
-    await user.type(query, '"we are hiring" AND "{{title}"');
+    await user.type(await screen.findByLabelText('Title to search'), 'Node.js Developer, MERN Developer');
+    await user.type(screen.getByLabelText('Location to search'), 'Bengaluru');
+    expect(screen.getByText('"hiring" AND "MERN Developer" AND "Bengaluru"')).toBeInTheDocument();
     await user.click(screen.getByLabelText('Start the assisted apply as soon as I approve a tailored resume'));
     await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(calls.some(call => call.key === 'PUT /profile')).toBe(true));
-    expect(calls.find(call => call.key === 'PUT /profile').body).toMatchObject({ hiringQueryTemplate: '"we are hiring" AND "{title}"', autoApplyOnApprove: true, location: 'Chennai' });
+    expect(calls.find(call => call.key === 'PUT /profile').body).toMatchObject({
+      hiringQueryTemplate: null,
+      hiringQueryTitle: 'Node.js Developer, MERN Developer',
+      hiringQueryLocation: 'Bengaluru',
+      autoApplyOnApprove: true,
+      location: 'Chennai',
+    });
   });
 });

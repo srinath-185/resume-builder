@@ -20,7 +20,8 @@ export const ProfileSchema = z.object({
   applyCap: cap,
   outreachCap: cap,
   defaultTemplateId: z.string(),
-  hiringQueryTemplate: z.string().max(300).refine(value => !value.trim() || value.includes('{title}'), 'Must contain {title}'),
+  hiringQueryTitle: z.string().max(300, 'At most 300 characters'),
+  hiringQueryLocation: z.string().max(120, 'At most 120 characters'),
   autoApplyOnApprove: z.boolean(),
 });
 
@@ -43,7 +44,8 @@ export function toProfileForm(profile) {
     applyCap: profile.dailyCaps?.apply ?? 15,
     outreachCap: profile.dailyCaps?.outreach ?? 10,
     defaultTemplateId: profile.defaultTemplateId ?? 'classic',
-    hiringQueryTemplate: profile.hiringQueryTemplate ?? '',
+    hiringQueryTitle: profile.hiringQueryTitle ?? '',
+    hiringQueryLocation: profile.hiringQueryLocation ?? '',
     autoApplyOnApprove: Boolean(profile.autoApplyOnApprove),
   };
 }
@@ -59,9 +61,30 @@ export function fromProfileForm(values) {
     autoTailorThreshold: Number(values.autoTailorThreshold),
     dailyCaps: { tailor: Number(values.tailorCap), apply: Number(values.applyCap), outreach: Number(values.outreachCap) },
     defaultTemplateId: values.defaultTemplateId || null,
-    hiringQueryTemplate: values.hiringQueryTemplate.trim() || null,
+    // The free-form template is replaced by the fixed "hiring" keyword plus the two boxes.
+    hiringQueryTemplate: null,
+    hiringQueryTitle: list(values.hiringQueryTitle).join(', ') || null,
+    hiringQueryLocation: values.hiringQueryLocation.trim() || null,
     autoApplyOnApprove: values.autoApplyOnApprove,
   };
+}
+
+/** Mirrors the backend searchTitle: "Backend Developer — GoldArk (Gold Savings App)" → "Backend Developer". */
+export const searchTitle = title =>
+  title
+    .split(/\s+[—–|@-]\s+|\s+at\s+|,\s+/i)[0]
+    .replace(/\(.*?\)|\[.*?\]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const clean = value => value.replace(/["\\]/g, ' ').replace(/\s+/g, ' ').trim();
+
+/** Mirrors the backend: "hiring" AND "<title>" AND "<location>", one query per title, location dropped when empty. */
+export function previewHiringQueries({ hiringQueryTitle = '', hiringQueryLocation = '', targetTitles = '', location = '', remoteOnly = false }) {
+  const custom = list(hiringQueryTitle);
+  const titles = [...new Set((custom.length ? custom : list(targetTitles)).map(searchTitle).filter(Boolean))].slice(0, 3);
+  const place = clean((clean(hiringQueryLocation) || (remoteOnly ? 'remote' : clean(location))).split(',')[0]);
+  return titles.map(title => ['"hiring"', `"${clean(title)}"`, place && `"${place}"`].filter(Boolean).join(' AND '));
 }
 
 export default function ProfilePage() {
@@ -69,7 +92,7 @@ export default function ProfilePage() {
   const { data: profile, isLoading, error } = useGetProfileQuery();
   const { data: templates } = useResumeTemplatesQuery();
   const [save, saveState] = useUpdateProfileMutation();
-  const { register, handleSubmit, reset, formState } = useForm({ resolver: zodResolver(ProfileSchema) });
+  const { register, handleSubmit, reset, formState, watch } = useForm({ resolver: zodResolver(ProfileSchema) });
 
   useEffect(() => {
     if (profile) reset(toProfileForm(profile));
@@ -77,6 +100,7 @@ export default function ProfilePage() {
 
   if (isLoading) return <Spinner />;
   const errors = formState.errors;
+  const queries = previewHiringQueries(watch());
 
   return (
     <div>
@@ -140,15 +164,43 @@ export default function ProfilePage() {
                 ))}
               </Select>
             </Field>
-            <Field
-              label={t('profile.hiringQuery', 'LinkedIn hiring-post query')}
-              hint={t('profile.hiringQueryHint', 'Default: "hiring" AND "{title}" AND "{location}". The location part is dropped when location is empty.')}
-              htmlFor="hiringQueryTemplate"
-              error={errors.hiringQueryTemplate?.message}
-            >
-              <Input id="hiringQueryTemplate" placeholder='"hiring" AND "{title}" AND "{location}"' {...register('hiringQueryTemplate')} />
-            </Field>
           </div>
+          <fieldset className="mt-4 rounded-md border border-slate-200 p-3">
+            <legend className="px-1 text-sm font-semibold text-slate-800">{t('profile.hiringQuery', 'LinkedIn hiring-post query')}</legend>
+            <div className="grid gap-3 md:grid-cols-[auto_1fr_1fr] md:items-start">
+              <Field label={t('profile.hiringKeyword', 'Keyword')} hint={t('profile.hiringKeywordHint', 'Always included.')}>
+                <span className="inline-flex h-9 items-center rounded-md bg-slate-100 px-3 text-sm font-medium text-slate-700">"hiring"</span>
+              </Field>
+              <Field
+                label={t('profile.hiringTitle', 'Title to search')}
+                hint={t('profile.hiringTitleHint', 'Comma separated. Leave empty to use each target job title.')}
+                htmlFor="hiringQueryTitle"
+                error={errors.hiringQueryTitle?.message}
+              >
+                <Input id="hiringQueryTitle" placeholder={t('profile.hiringTitlePlaceholder', 'Your target job titles')} {...register('hiringQueryTitle')} />
+              </Field>
+              <Field
+                label={t('profile.hiringLocation', 'Location to search')}
+                hint={t('profile.hiringLocationHint', 'City only. Leave empty to use the city from your profile location. Dropped from the query when both are empty.')}
+                htmlFor="hiringQueryLocation"
+                error={errors.hiringQueryLocation?.message}
+              >
+                <Input id="hiringQueryLocation" placeholder={t('profile.hiringLocationPlaceholder', 'Your profile location')} {...register('hiringQueryLocation')} />
+              </Field>
+            </div>
+            <div className="mt-3 text-xs text-slate-600" aria-live="polite">
+              <p className="font-medium text-slate-700">{t('profile.hiringPreview', 'Queries that will run')}</p>
+              {queries.length ? (
+                <ul className="mt-1 space-y-0.5 font-mono">
+                  {queries.map(query => (
+                    <li key={query}>{query}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-1">{t('profile.hiringPreviewEmpty', 'Add a title here or a target job title to search for hiring posts.')}</p>
+              )}
+            </div>
+          </fieldset>
         </Card>
 
         <ErrorMessage error={saveState.error} />
