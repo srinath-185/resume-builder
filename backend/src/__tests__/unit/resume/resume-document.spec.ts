@@ -1,5 +1,5 @@
 import { expect } from '@loopback/testlab';
-import { ResumeDocumentSchema, resumeToText, toMonthIndex, yearsOfExperience } from '../../../domain/resume-document';
+import { normalizeSkills, ResumeDocumentSchema, resumeToText, toMonthIndex, yearsOfExperience } from '../../../domain/resume-document';
 import { detectType } from '../../../services/common/file-upload.service';
 import { StorageService } from '../../../services/common/storage.service';
 import { normaliseText, TextExtractionService } from '../../../services/resume/text-extraction.service';
@@ -92,5 +92,29 @@ describe('TextExtractionService', () => {
 
   it('rejects files with no readable text', async () => {
     await expect(service.extract(minimalPdf(['']), 'pdf')).to.be.rejectedWith(/No readable text/);
+  });
+});
+
+describe('normalizeSkills', () => {
+  it('splits category lines into one skill each', () => {
+    expect(normalizeSkills(['Frontend: React.js, React 18, Redux Toolkit', 'Languages: JavaScript (ES6+), TypeScript, SQL'])).to.deepEqual([
+      'React.js',
+      'React 18',
+      'Redux Toolkit',
+      'JavaScript (ES6+)',
+      'TypeScript',
+      'SQL',
+    ]);
+  });
+
+  it('keeps commas inside brackets and removes duplicates case-insensitively', () => {
+    expect(normalizeSkills(['JavaScript (ES6+, ESNext)', 'Redis', 'Databases: MongoDB; redis'])).to.deepEqual(['JavaScript (ES6+, ESNext)', 'Redis', 'MongoDB']);
+  });
+
+  it('lets a grouped long skills line pass the schema', () => {
+    const line = 'Backend: Node.js, Express.js, LoopBack 4, REST APIs, RESTful Services, Swagger/OpenAPI, JWT Authentication, RBAC, Webhooks';
+    const parsed = ResumeDocumentSchema.parse({ contact: { name: 'A' }, skills: [line] });
+    expect(parsed.skills).to.containEql('Swagger/OpenAPI');
+    expect(parsed.skills.every(skill => skill.length <= 80)).to.be.true();
   });
 });

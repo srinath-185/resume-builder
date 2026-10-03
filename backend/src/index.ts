@@ -15,7 +15,7 @@ export async function main(options: ApplicationConfig = {}): Promise<ResumeBuild
 if (require.main === module) {
   const config: ApplicationConfig = {
     rest: {
-      port: envInt('PORT', 3100),
+      port: envInt('PORT', 6969),
       host: envString('HOST', '127.0.0.1'),
       gracePeriodForClose: 5000,
       openApiSpec: { setServersFromRequest: true },

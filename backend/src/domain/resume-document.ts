@@ -47,13 +47,63 @@ export const CertificationSchema = z.object({
   date: optionalText(20),
 });
 
+const MAX_SKILLS = 150;
+const CATEGORY_LABEL = /^[^:,;()]{1,40}:\s*/;
+
+/** Splits on commas and semicolons that are not inside brackets, so "JavaScript (ES6+, ESNext)" stays whole. */
+function splitTopLevel(value: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let current = '';
+  for (const char of value) {
+    if ('([{'.includes(char)) depth++;
+    else if (')]}'.includes(char)) depth = Math.max(0, depth - 1);
+    if (depth === 0 && (char === ',' || char === ';')) {
+      parts.push(current);
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  parts.push(current);
+  return parts;
+}
+
+/**
+ * Resumes often group skills as "Frontend: React, Vue, Vite" and models copy
+ * each line as one entry. Turn those into one skill per item: drop the
+ * category label, split the list, and remove case-insensitive duplicates.
+ */
+export function normalizeSkills(value: unknown): unknown {
+  if (!Array.isArray(value)) return value;
+  const seen = new Set<string>();
+  const skills: unknown[] = [];
+  for (const item of value) {
+    if (typeof item !== 'string') {
+      skills.push(item);
+      continue;
+    }
+    const parts = splitTopLevel(item);
+    const grouped = parts.length > 1 || CATEGORY_LABEL.test(item);
+    const pieces = grouped ? splitTopLevel(item.replace(CATEGORY_LABEL, '')) : parts;
+    for (const piece of pieces) {
+      const skill = piece.replace(/\s+/g, ' ').trim();
+      const key = skill.toLowerCase();
+      if (!skill || seen.has(key)) continue;
+      seen.add(key);
+      skills.push(skill);
+    }
+  }
+  return skills.slice(0, MAX_SKILLS);
+}
+
 export const ResumeDocumentSchema = z.object({
   contact: ContactSchema,
   headline: optionalText(200),
   summary: optionalText(2000),
   experience: list(ExperienceSchema, 30),
   education: list(EducationSchema, 15),
-  skills: list(text(80), 150),
+  skills: z.preprocess(normalizeSkills, list(text(80), MAX_SKILLS)),
   projects: list(ProjectSchema, 20),
   certifications: list(CertificationSchema, 30),
 });

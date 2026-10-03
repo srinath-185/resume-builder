@@ -22,7 +22,7 @@ cd backend
 cp .env.example .env      # fill JWT_SECRET and ENCRYPTION_KEY
 npm install
 npm test                  # builds, then runs unit + acceptance tests on an in-memory DB
-npm run dev               # http://127.0.0.1:3100/api, explorer at /api/explorer
+npm run dev               # http://127.0.0.1:6969/api, explorer at /api/explorer
 ```
 
 Every response is `{ success: true, data }` or `{ success: false, error: { code, message, details? } }`.

@@ -3,6 +3,7 @@ export const RESUME_PARSE_SYSTEM = `You convert the plain text of a resume into 
 Copy facts exactly as written: company names, job titles, dates, degrees, institutions, certifications and numbers.
 Do not invent, infer, summarise or improve anything. If a field is not present in the text, use null (or [] for lists).
 Keep each bullet point as written, one array item per bullet, without the bullet character.
+Skills: one skill per array item, e.g. "React.js", "MongoDB". When skills are grouped like "Frontend: React.js, Vite", drop the category label and list each skill separately.
 Dates: use "YYYY-MM" when month and year are given, "YYYY" when only the year is given, and "Present" for a current role.
 
 Return an object with exactly this shape:
